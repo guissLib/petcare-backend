@@ -29,6 +29,7 @@ export class MysqlPersistenceService implements OnModuleInit, OnModuleDestroy {
       database: process.env.MYSQL_DATABASE ?? 'petcare',
       waitForConnections: true,
       connectionLimit: Number(process.env.MYSQL_POOL_SIZE ?? 10),
+      ssl: process.env.MYSQL_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
     });
     await this.pool.execute(`
       CREATE TABLE IF NOT EXISTS petcare_state (

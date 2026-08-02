@@ -1,0 +1,17 @@
+C4Context
+title PetCare Home Services - C4 System Context
+
+Person(owner, "Dueño de mascota", "Crea perfiles, consulta servicios y agenda reservas.")
+Person(provider, "Proveedor", "Gestiona disponibilidad y actualiza o rechaza reservas.")
+System(petcare, "PetCare Home Services", "Gestiona mascotas, vacunas, proveedores, promociones y reservas.")
+System_Ext(mysql, "MySQL", "Persistencia opcional del backend.")
+System_Ext(client, "Aplicación móvil / cliente web", "Consume la API REST y Swagger.")
+
+Rel(owner, client, "Usa")
+Rel(provider, client, "Usa")
+Rel(client, petcare, "Consume API REST", "HTTP/JSON")
+Rel(petcare, mysql, "Persiste estado", "MySQL")
+
+UpdateElementStyle(petcare, $bgColor="#1168bd", $fontColor="white")
+UpdateElementStyle(mysql, $bgColor="#777777", $fontColor="white")
+UpdateRelStyle(petcare, mysql, $textColor="#555555", $lineColor="#555555")

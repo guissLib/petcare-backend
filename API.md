@@ -12,6 +12,9 @@ npm run start:dev
 ```
 
 La API queda disponible en `http://localhost:3000/api`.
+La documentación interactiva Swagger queda disponible en
+`http://localhost:3000/docs` y el contrato OpenAPI JSON en
+`http://localhost:3000/docs/openapi.json`.
 
 ## MySQL
 

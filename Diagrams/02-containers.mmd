@@ -1,0 +1,29 @@
+C4Container
+title PetCare Home Services - C4 Container Diagram
+
+Person(owner, "Dueño de mascota", "Agenda y consulta reservas.")
+Person(provider, "Proveedor", "Administra servicios y estados.")
+
+System_Boundary(petcare, "PetCare Home Services") {
+  Container(api, "REST API", "NestJS / TypeScript", "Expone endpoints de usuarios, mascotas, proveedores, reservas y promociones.")
+  Container(swagger, "Swagger UI", "OpenAPI", "Documenta y permite probar la API.")
+  Container(domain, "PetcareService", "NestJS Provider", "Aplica reglas de disponibilidad, vacunación, capacidad, promociones y reservas.")
+  Container(mock, "Mock Adapters", "TypeScript", "Simula pagos, mapas y notificaciones sin llamadas externas.")
+  ContainerDb(memory, "In-memory Store", "Arrays TypeScript", "Almacenamiento local cuando MySQL está desactivado.")
+}
+
+ContainerDb(mysql, "MySQL Persistence", "MySQL / mysql2", "Tabla petcare_state con estado persistido. Se activa con MYSQL_ENABLED=true.")
+
+Rel(owner, api, "Gestiona mascotas y reservas", "HTTP/JSON")
+Rel(provider, api, "Gestiona disponibilidad y estados", "HTTP/JSON")
+Rel(owner, swagger, "Explora endpoints", "HTTP")
+Rel(api, domain, "Invoca casos de uso")
+Rel(swagger, api, "Consulta contrato OpenAPI")
+Rel(domain, mock, "Solicita operaciones simuladas")
+Rel(domain, memory, "Lee/escribe cuando MySQL está desactivado")
+Rel(domain, mysql, "Lee/escribe cuando MySQL está activado")
+
+UpdateElementStyle(api, $bgColor="#438dd5", $fontColor="white")
+UpdateElementStyle(domain, $bgColor="#85bbf0", $fontColor="black")
+UpdateElementStyle(mock, $bgColor="#f0ad4e", $fontColor="black")
+UpdateElementStyle(mysql, $bgColor="#777777", $fontColor="white")

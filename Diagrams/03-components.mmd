@@ -1,0 +1,37 @@
+C4Component
+title PetCare Home Services - C4 Component Diagram
+
+Container_Boundary(api, "NestJS PetCare Backend") {
+  Component(controller, "PetcareController", "NestJS Controller", "Mapea rutas REST, parámetros, cuerpos y respuestas HTTP.")
+  Component(service, "PetcareService", "NestJS Service", "Coordina reglas de usuarios, mascotas, reservas, promociones y notificaciones.")
+  Component(availability, "Availability Rules", "Dominio", "Valida horarios, capacidad y conflictos de reservas.")
+  Component(vaccination, "Vaccination Rules", "Dominio", "Verifica vacunas vigentes para veterinaria y boarding.")
+  Component(promotions, "Promotion Rules", "Dominio", "Aplica promociones nacionales y locales.")
+  Component(mockPayment, "Mock Payment Adapter", "TypeScript", "Genera referencias MOCK-* y estados paid/pending.")
+  Component(mockMap, "Mock Map Adapter", "TypeScript", "Genera coordenadas determinísticas sin proveedor externo.")
+  Component(mockNotification, "Mock Notification Adapter", "TypeScript", "Registra confirmaciones, recordatorios, rechazos y finalizaciones.")
+  Component(mysql, "MysqlPersistenceService", "NestJS Provider / mysql2", "Carga y guarda estado en MySQL.")
+}
+
+ContainerDb(db, "petcare_state", "MySQL", "Estado persistido del backend.")
+ContainerDb(store, "In-memory Store", "Arrays TypeScript", "Estado temporal de desarrollo.")
+System_Ext(client, "Cliente móvil/web", "Consume la API REST.")
+
+Rel(client, controller, "Realiza solicitudes", "HTTP/JSON")
+Rel(controller, service, "Invoca operaciones")
+Rel(service, availability, "Valida disponibilidad")
+Rel(service, vaccination, "Valida requisitos")
+Rel(service, promotions, "Calcula descuentos")
+Rel(service, mockPayment, "Procesa pagos mock")
+Rel(service, mockMap, "Geocodifica direcciones mock")
+Rel(service, mockNotification, "Emite notificaciones mock")
+Rel(service, mysql, "Persiste estado")
+Rel(service, store, "Usa si MySQL está desactivado")
+Rel(mysql, db, "Lee/escribe", "SQL")
+
+UpdateElementStyle(controller, $bgColor="#438dd5", $fontColor="white")
+UpdateElementStyle(service, $bgColor="#85bbf0", $fontColor="black")
+UpdateElementStyle(mockPayment, $bgColor="#f0ad4e", $fontColor="black")
+UpdateElementStyle(mockMap, $bgColor="#f0ad4e", $fontColor="black")
+UpdateElementStyle(mockNotification, $bgColor="#f0ad4e", $fontColor="black")
+UpdateElementStyle(mysql, $bgColor="#777777", $fontColor="white")
