@@ -11,7 +11,6 @@ async function bootstrap() {
     .setTitle('PetCare Home Services API')
     .setDescription('API para perfiles de mascotas, reservas, proveedores, promociones y pagos mock.')
     .setVersion('1.0')
-    .addServer('/api', 'API')
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document, {

@@ -21,7 +21,7 @@ export class MysqlPersistenceService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn('MySQL desactivado; se usará persistencia en memoria');
       return;
     }
-    this.pool = mysql.createPool({
+    const pool = mysql.createPool({
       host: process.env.MYSQL_HOST ?? '127.0.0.1',
       port: Number(process.env.MYSQL_PORT ?? 3306),
       user: process.env.MYSQL_USER ?? 'petcare',
@@ -31,14 +31,22 @@ export class MysqlPersistenceService implements OnModuleInit, OnModuleDestroy {
       connectionLimit: Number(process.env.MYSQL_POOL_SIZE ?? 10),
       ssl: process.env.MYSQL_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
     });
-    await this.pool.execute(`
-      CREATE TABLE IF NOT EXISTS petcare_state (
-        state_key VARCHAR(64) PRIMARY KEY,
-        state_json JSON NOT NULL,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      )
-    `);
-    this.logger.log('Persistencia MySQL habilitada');
+    try {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS petcare_state (
+          state_key VARCHAR(64) PRIMARY KEY,
+          state_json JSON NOT NULL,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+      `);
+      this.pool = pool;
+      this.logger.log('Persistencia MySQL habilitada');
+    } catch (error) {
+      await pool.end().catch(() => undefined);
+      this.pool = undefined;
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`No se pudo conectar a MySQL; se usará memoria. ${message}`);
+    }
   }
 
   async load(): Promise<Partial<PetcareState> | null> {

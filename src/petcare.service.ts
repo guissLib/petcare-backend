@@ -9,8 +9,10 @@ import { MysqlPersistenceService } from './mysql-persistence.service';
 type Input = Record<string, any>;
 const now = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}_${randomUUID()}`;
-const required = (input: Input, fields: string[]) => {
-  const missing = fields.filter((field) => input[field] === undefined || input[field] === '');
+const required = (input: Input | null | undefined, fields: string[]) => {
+  const missing = !input
+    ? fields
+    : fields.filter((field) => input[field] === undefined || input[field] === '');
   if (missing.length) throw new BadRequestException(`Campos requeridos: ${missing.join(', ')}`);
 };
 
@@ -70,6 +72,15 @@ export class PetcareService implements OnModuleInit {
     this.users.push(user);
     void this.persist();
     return user;
+  }
+
+  loginWithEmail(input: Input) {
+    required(input, ['email']);
+    const email = String(input.email).trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(email)) throw new BadRequestException('email debe ser válido');
+    const existing = this.users.find((user) => user.email.toLowerCase() === email);
+    if (!existing) throw new NotFoundException('No existe un usuario con ese correo');
+    return existing;
   }
 
   listUsers() { return this.users; }

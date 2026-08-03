@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PetcareService } from './petcare.service';
 
 @ApiTags('PetCare')
@@ -16,7 +16,22 @@ export class PetcareController {
 
   @Post('users')
   @ApiOperation({ summary: 'Crea un perfil de usuario' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['name', 'email', 'city'],
+      properties: {
+        name: { type: 'string', example: 'Ana P\u00e9rez' },
+        email: { type: 'string', format: 'email', example: 'ana@example.com' },
+        phone: { type: 'string', example: '+57 300 123 4567' },
+        city: { type: 'string', example: 'Bogot\u00e1' },
+      },
+    },
+  })
   createUser(@Body() body: any) { return this.service.createUser(body); }
+  @Post('auth/login')
+  @ApiOperation({ summary: 'Identifica o crea el perfil mínimo usando solo el correo' })
+  login(@Body() body: any) { return this.service.loginWithEmail(body); }
   @Get('users')
   users() { return this.service.listUsers(); }
   @Post('users/:userId/pets')
