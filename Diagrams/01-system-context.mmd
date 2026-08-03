@@ -3,15 +3,16 @@ title PetCare Home Services - C4 System Context
 
 Person(owner, "Dueño de mascota", "Crea perfiles, consulta servicios y agenda reservas.")
 Person(provider, "Proveedor", "Gestiona disponibilidad y actualiza o rechaza reservas.")
-System(petcare, "PetCare Home Services", "Gestiona mascotas, vacunas, proveedores, promociones y reservas.")
-System_Ext(mysql, "MySQL", "Persistencia opcional del backend.")
-System_Ext(client, "Aplicación móvil / cliente web", "Consume la API REST y Swagger.")
+System_Ext(web, "PetCare Web", "Frontend responsive Next.js para dueños de mascotas.")
+System(petcare, "PetCare Home Services", "Backend NestJS organizado por paquetes de dominio para mascotas, servicios y reservas.")
+System_Ext(mysql, "MySQL / Aiven", "Persistencia opcional del estado de la aplicación.")
 
-Rel(owner, client, "Usa")
-Rel(provider, client, "Usa")
-Rel(client, petcare, "Consume API REST", "HTTP/JSON")
-Rel(petcare, mysql, "Persiste estado", "MySQL")
+Rel(owner, web, "Usa")
+Rel(provider, web, "Usa")
+Rel(web, petcare, "Consume API REST", "HTTP/JSON")
+Rel(petcare, mysql, "Persiste estado cuando está habilitado", "MySQL/TLS")
 
+UpdateElementStyle(web, $bgColor="#ef846c", $fontColor="white")
 UpdateElementStyle(petcare, $bgColor="#1168bd", $fontColor="white")
 UpdateElementStyle(mysql, $bgColor="#777777", $fontColor="white")
 UpdateRelStyle(petcare, mysql, $textColor="#555555", $lineColor="#555555")

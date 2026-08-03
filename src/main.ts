@@ -9,7 +9,9 @@ async function bootstrap() {
   app.enableCors();
   const swaggerConfig = new DocumentBuilder()
     .setTitle('PetCare Home Services API')
-    .setDescription('API para perfiles de mascotas, reservas, proveedores, promociones y pagos mock.')
+    .setDescription(
+      'API para perfiles de mascotas, reservas, proveedores, promociones y pagos mock.',
+    )
     .setVersion('1.0')
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
@@ -19,4 +21,4 @@ async function bootstrap() {
   });
   await app.listen(process.env.PORT ?? 3000);
 }
-bootstrap();
+void bootstrap();

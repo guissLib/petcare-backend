@@ -1,37 +1,68 @@
 C4Component
 title PetCare Home Services - C4 Component Diagram
 
-Container_Boundary(api, "NestJS PetCare Backend") {
-  Component(controller, "PetcareController", "NestJS Controller", "Mapea rutas REST, parámetros, cuerpos y respuestas HTTP.")
-  Component(service, "PetcareService", "NestJS Service", "Coordina reglas de usuarios, mascotas, reservas, promociones y notificaciones.")
-  Component(availability, "Availability Rules", "Dominio", "Valida horarios, capacidad y conflictos de reservas.")
-  Component(vaccination, "Vaccination Rules", "Dominio", "Verifica vacunas vigentes para veterinaria y boarding.")
-  Component(promotions, "Promotion Rules", "Dominio", "Aplica promociones nacionales y locales.")
-  Component(mockPayment, "Mock Payment Adapter", "TypeScript", "Genera referencias MOCK-* y estados paid/pending.")
-  Component(mockMap, "Mock Map Adapter", "TypeScript", "Genera coordenadas determinísticas sin proveedor externo.")
-  Component(mockNotification, "Mock Notification Adapter", "TypeScript", "Registra confirmaciones, recordatorios, rechazos y finalizaciones.")
-  Component(mysql, "MysqlPersistenceService", "NestJS Provider / mysql2", "Carga y guarda estado en MySQL.")
+Container_Boundary(backend, "NestJS PetCare Backend") {
+  Container_Boundary(httpLayer, "interfaces/http") {
+    Component(controller, "PetcareController", "NestJS Controller", "Mapea rutas REST, parámetros, cuerpos y respuestas HTTP.")
+  }
+
+  Container_Boundary(applicationLayer, "application") {
+    Component(facade, "PetcareApplicationService", "Application Service", "Expone una fachada estable y coordina los paquetes de dominio.")
+    Component(store, "PetcareStoreService", "Application Service", "Carga el estado inicial y delega la persistencia.")
+    Component(port, "PetcarePersistence", "Port / interface", "Contrato de load, save e isAvailable para la persistencia.")
+  }
+
+  Container_Boundary(domainLayer, "domains") {
+    Component(users, "UsersDomainService", "Domain package", "Crea, lista y busca usuarios.")
+    Component(pets, "PetsDomainService", "Domain package", "Gestiona mascotas y registros de vacunación.")
+    Component(providers, "ProvidersDomainService", "Domain package", "Consulta proveedores y valida disponibilidad.")
+    Component(promotions, "PromotionsDomainService", "Domain package", "Administra promociones nacionales y locales.")
+    Component(bookings, "BookingsDomainService", "Domain package", "Aplica reglas de reserva, capacidad y estados.")
+    Component(notifications, "NotificationsDomainService", "Domain package", "Genera confirmaciones, recordatorios y eventos.")
+    Component(payments, "PaymentsDomainService", "Domain package", "Procesa pagos mock con referencias MOCK-*.")
+    Component(maps, "MapsDomainService", "Domain package", "Geocodifica direcciones de forma determinística.")
+  }
+
+  Container_Boundary(infrastructureLayer, "infrastructure/persistence") {
+    Component(mysql, "MysqlPersistenceService", "Infrastructure adapter / mysql2", "Implementa el puerto y guarda PetcareState en MySQL.")
+  }
 }
 
-ContainerDb(db, "petcare_state", "MySQL", "Estado persistido del backend.")
-ContainerDb(store, "In-memory Store", "Arrays TypeScript", "Estado temporal de desarrollo.")
-System_Ext(client, "Cliente móvil/web", "Consume la API REST.")
+ContainerDb(db, "petcare_state", "MySQL", "Estado JSON persistido del backend.")
+System_Ext(client, "PetCare Web", "Next.js", "Cliente web responsive.")
 
 Rel(client, controller, "Realiza solicitudes", "HTTP/JSON")
-Rel(controller, service, "Invoca operaciones")
-Rel(service, availability, "Valida disponibilidad")
-Rel(service, vaccination, "Valida requisitos")
-Rel(service, promotions, "Calcula descuentos")
-Rel(service, mockPayment, "Procesa pagos mock")
-Rel(service, mockMap, "Geocodifica direcciones mock")
-Rel(service, mockNotification, "Emite notificaciones mock")
-Rel(service, mysql, "Persiste estado")
-Rel(service, store, "Usa si MySQL está desactivado")
-Rel(mysql, db, "Lee/escribe", "SQL")
+Rel(controller, facade, "Invoca operaciones")
+Rel(facade, users, "Coordina")
+Rel(facade, pets, "Coordina")
+Rel(facade, providers, "Coordina")
+Rel(facade, promotions, "Coordina")
+Rel(facade, bookings, "Coordina")
+Rel(facade, notifications, "Coordina")
+Rel(facade, payments, "Coordina")
+Rel(facade, maps, "Coordina")
+Rel(users, store, "Lee/escribe estado")
+Rel(pets, store, "Lee/escribe estado")
+Rel(providers, store, "Consulta reservas")
+Rel(promotions, store, "Lee/escribe estado")
+Rel(bookings, users, "Valida propietario")
+Rel(bookings, pets, "Valida mascota y vacunas")
+Rel(bookings, providers, "Valida proveedor y disponibilidad")
+Rel(bookings, promotions, "Calcula descuentos")
+Rel(bookings, payments, "Genera pago mock")
+Rel(bookings, notifications, "Emite eventos")
+Rel(store, port, "Usa contrato")
+Rel(port, mysql, "Delegación de persistencia")
+Rel(mysql, db, "Lee/escribe", "SQL/TLS")
 
 UpdateElementStyle(controller, $bgColor="#438dd5", $fontColor="white")
-UpdateElementStyle(service, $bgColor="#85bbf0", $fontColor="black")
-UpdateElementStyle(mockPayment, $bgColor="#f0ad4e", $fontColor="black")
-UpdateElementStyle(mockMap, $bgColor="#f0ad4e", $fontColor="black")
-UpdateElementStyle(mockNotification, $bgColor="#f0ad4e", $fontColor="black")
+UpdateElementStyle(facade, $bgColor="#4d9bd5", $fontColor="white")
+UpdateElementStyle(users, $bgColor="#85bbf0", $fontColor="black")
+UpdateElementStyle(pets, $bgColor="#85bbf0", $fontColor="black")
+UpdateElementStyle(providers, $bgColor="#85bbf0", $fontColor="black")
+UpdateElementStyle(promotions, $bgColor="#85bbf0", $fontColor="black")
+UpdateElementStyle(bookings, $bgColor="#6fa9d7", $fontColor="black")
+UpdateElementStyle(notifications, $bgColor="#f0ad4e", $fontColor="black")
+UpdateElementStyle(payments, $bgColor="#f0ad4e", $fontColor="black")
+UpdateElementStyle(maps, $bgColor="#f0ad4e", $fontColor="black")
 UpdateElementStyle(mysql, $bgColor="#777777", $fontColor="white")
