@@ -7,8 +7,7 @@ de dominio y su integración con el frontend Next.js.
 ## Niveles
 
 - `01-system-context.mmd`: actores, frontend web, backend y MySQL/Aiven.
-- `02-containers.mmd`: interfaz HTTP, fachada de aplicación, dominios, store,
-  puertos y adaptadores de persistencia/eventos.
+- `02-containers.mmd`: frontend Next.js, backend NestJS y broker RabbitMQ.
 - `03-components.mmd`: componentes de cada capa y relaciones entre dominios.
 
 ## Flujo de pagos y reservas
