@@ -7,20 +7,26 @@ de dominio y su integración con el frontend Next.js.
 ## Niveles
 
 - `01-system-context.mmd`: actores, frontend web, backend y MySQL/Aiven.
-- `02-containers.mmd`: interfaz HTTP, fachada de aplicación, dominios, store y
-  puerto/adaptador de persistencia.
+- `02-containers.mmd`: interfaz HTTP, fachada de aplicación, dominios, store,
+  puertos y adaptadores de persistencia/eventos.
 - `03-components.mmd`: componentes de cada capa y relaciones entre dominios.
 
-## Flujo principal
+## Flujo de pagos y reservas
 
 ```text
-PetCare Web → HTTP Interface → Application Facade → Domain Packages
-                                               ↓
-                                         PetCare Store
-                                               ↓
-                                      Persistence Port
-                                               ↓
-                                      MySQL Adapter → MySQL
+PetCare Web → Payments Domain → Event Bus → Bookings Consumer
+                                      ↓              ↓
+                                CloudAMQP       Bookings Domain
+```
+
+El frontend solicita primero el pago. Cuando queda confirmado, Payments publica
+`payment.confirmed`; el consumidor entrega el evento a Bookings, que valida y
+crea la reserva. Payments y Bookings no se invocan directamente.
+
+## Persistencia
+
+```text
+Domain Packages → PetCare Store → Persistence Port → MySQL Adapter → MySQL
 ```
 
 Si MySQL no está habilitado o no está disponible, `PetCareStoreService` mantiene
@@ -47,7 +53,13 @@ en Markdown usando:
   mascotas, proveedores, promociones, reservas, notificaciones, pagos y mapas.
 - `PetcarePersistence` es un puerto; `MysqlPersistenceService` es su adaptador
   de infraestructura.
+- `PetcareEventBus` es un puerto; `CloudAmqpEventBusService` implementa el
+  transporte RabbitMQ de CloudAMQP.
 - MySQL utiliza la tabla `petcare_state` y se activa mediante
   `MYSQL_ENABLED=true`.
+- El evento `payment.confirmed` usa una cola durable y se procesa con
+  idempotencia por `payment.id`.
+- Los errores permanentes se envían a una cola dead-letter y los errores
+  transitorios tienen un máximo configurable de reintentos.
 - Pagos, geocodificación y notificaciones siguen siendo implementaciones mock
   dentro de sus dominios, sin llamadas a proveedores externos.

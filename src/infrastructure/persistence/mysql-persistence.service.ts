@@ -30,10 +30,11 @@ export class MysqlPersistenceService
       database: process.env.MYSQL_DATABASE ?? 'petcare',
       waitForConnections: true,
       connectionLimit: Number(process.env.MYSQL_POOL_SIZE ?? 10),
-      ssl:
-        process.env.MYSQL_SSL === 'true'
-          ? { rejectUnauthorized: false }
-          : undefined,
+      ssl: ['true', 'required', 'require'].includes(
+        (process.env.MYSQL_SSL ?? '').toLowerCase(),
+      )
+        ? { rejectUnauthorized: false }
+        : undefined,
     });
 
     try {

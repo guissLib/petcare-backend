@@ -17,10 +17,12 @@ src/
 │   ├── maps/           # geocodificación mock
 │   └── shared/         # tipos, estado inicial y utilidades comunes
 ├── application/
-│   ├── ports/          # contratos que necesita la aplicación
+│   ├── consumers/      # consumidores de eventos de dominio
+│   ├── ports/          # contratos de persistencia y eventos
 │   ├── petcare-store.service.ts
 │   └── petcare.application.service.ts
 ├── infrastructure/
+│   ├── messaging/      # adaptador CloudAMQP/RabbitMQ
 │   └── persistence/    # implementación MySQL
 └── interfaces/
     └── http/           # adaptador REST y Swagger
@@ -28,12 +30,23 @@ src/
 
 ## Flujo de una petición
 
+Las peticiones de pago siguen este flujo:
+
+`HTTP Controller → Payments Domain → Event Bus → Bookings Consumer → Bookings Domain`
+
+La reserva no importa ni invoca el dominio de pagos. Una vez confirmado el
+pago, `PaymentsDomainService` publica `payment.confirmed` y
+`PaymentConfirmedConsumer` entrega el evento a `BookingsDomainService`.
+
+Para operaciones síncronas de consulta, el flujo es:
+
 `HTTP Controller → Application Service → Domain Service → Store → Persistence`
 
 El controlador solamente traduce HTTP. La fachada de aplicación coordina los
 dominios y cada servicio de dominio aplica sus reglas. La persistencia se
-consume mediante `PetcarePersistence`, por lo que MySQL puede reemplazarse sin
-modificar los dominios.
+consume mediante `PetcarePersistence`, mientras que los eventos se publican
+mediante `PetcareEventBus`. Ambos adaptadores pueden reemplazarse sin modificar
+los dominios.
 
 ## Compatibilidad
 

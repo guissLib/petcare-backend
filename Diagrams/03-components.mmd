@@ -10,6 +10,8 @@ Container_Boundary(backend, "NestJS PetCare Backend") {
     Component(facade, "PetcareApplicationService", "Application Service", "Expone una fachada estable y coordina los paquetes de dominio.")
     Component(store, "PetcareStoreService", "Application Service", "Carga el estado inicial y delega la persistencia.")
     Component(port, "PetcarePersistence", "Port / interface", "Contrato de load, save e isAvailable para la persistencia.")
+    Component(eventPort, "PetcareEventBus", "Port / interface", "Contrato para publicar y consumir eventos de dominio.")
+    Component(consumer, "PaymentConfirmedConsumer", "Application Consumer", "Escucha payment.confirmed y delega la creación de la reserva.")
   }
 
   Container_Boundary(domainLayer, "domains") {
@@ -26,9 +28,15 @@ Container_Boundary(backend, "NestJS PetCare Backend") {
   Container_Boundary(infrastructureLayer, "infrastructure/persistence") {
     Component(mysql, "MysqlPersistenceService", "Infrastructure adapter / mysql2", "Implementa el puerto y guarda PetcareState en MySQL.")
   }
+
+  Container_Boundary(messagingLayer, "infrastructure/messaging") {
+    Component(amqp, "CloudAmqpEventBusService", "Infrastructure adapter / amqplib", "Publica y consume eventos mediante CloudAMQP.")
+  }
 }
 
 ContainerDb(db, "petcare_state", "MySQL", "Estado JSON persistido del backend.")
+System_Ext(broker, "CloudAMQP", "RabbitMQ", "Exchange y cola durable de eventos.")
+System_Ext(dlq, "Dead-letter Queue", "RabbitMQ", "Eventos descartados por errores permanentes.")
 System_Ext(client, "PetCare Web", "Next.js", "Cliente web responsive.")
 
 Rel(client, controller, "Realiza solicitudes", "HTTP/JSON")
@@ -41,6 +49,9 @@ Rel(facade, bookings, "Coordina")
 Rel(facade, notifications, "Coordina")
 Rel(facade, payments, "Coordina")
 Rel(facade, maps, "Coordina")
+Rel(consumer, eventPort, "Se suscribe a payment.confirmed")
+Rel(eventPort, consumer, "Entrega eventos")
+Rel(consumer, bookings, "Solicita crear reserva")
 Rel(users, store, "Lee/escribe estado")
 Rel(pets, store, "Lee/escribe estado")
 Rel(providers, store, "Consulta reservas")
@@ -49,11 +60,15 @@ Rel(bookings, users, "Valida propietario")
 Rel(bookings, pets, "Valida mascota y vacunas")
 Rel(bookings, providers, "Valida proveedor y disponibilidad")
 Rel(bookings, promotions, "Calcula descuentos")
-Rel(bookings, payments, "Genera pago mock")
 Rel(bookings, notifications, "Emite eventos")
+Rel(payments, store, "Persiste payment")
 Rel(store, port, "Usa contrato")
 Rel(port, mysql, "Delegación de persistencia")
 Rel(mysql, db, "Lee/escribe", "SQL/TLS")
+Rel(payments, eventPort, "Publica payment.confirmed")
+Rel(eventPort, amqp, "Implementado por")
+Rel(amqp, broker, "Publica/consume", "AMQP/TLS")
+Rel(amqp, dlq, "Mueve eventos fallidos")
 
 UpdateElementStyle(controller, $bgColor="#438dd5", $fontColor="white")
 UpdateElementStyle(facade, $bgColor="#4d9bd5", $fontColor="white")
@@ -66,3 +81,7 @@ UpdateElementStyle(notifications, $bgColor="#f0ad4e", $fontColor="black")
 UpdateElementStyle(payments, $bgColor="#f0ad4e", $fontColor="black")
 UpdateElementStyle(maps, $bgColor="#f0ad4e", $fontColor="black")
 UpdateElementStyle(mysql, $bgColor="#777777", $fontColor="white")
+UpdateElementStyle(eventPort, $bgColor="#f8cf8b", $fontColor="black")
+UpdateElementStyle(consumer, $bgColor="#4d9bd5", $fontColor="white")
+UpdateElementStyle(amqp, $bgColor="#f0ad4e", $fontColor="black")
+UpdateElementStyle(dlq, $bgColor="#d9534f", $fontColor="white")

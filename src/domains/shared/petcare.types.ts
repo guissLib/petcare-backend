@@ -95,6 +95,26 @@ export interface Payment {
   reference: string;
 }
 
+export interface BookingRequest {
+  userId: string;
+  petId: string;
+  providerId: string;
+  serviceType: ServiceType;
+  visitMode: Booking['visitMode'];
+  scheduledAt: string;
+  address?: string;
+  notes?: string;
+  total?: number;
+}
+
+export interface PaymentConfirmedEvent {
+  eventId: string;
+  type: 'payment.confirmed';
+  occurredAt: string;
+  payment: Payment;
+  booking: BookingRequest;
+}
+
 export interface Notification {
   id: string;
   userId: string;

@@ -114,7 +114,10 @@ export class PetcareController {
   }
 
   @Post('users/:userId/bookings')
-  @ApiOperation({ summary: 'Crea una reserva y procesa el pago mock' })
+  @ApiOperation({
+    summary: 'Compatibilidad: solicita pago y reserva mediante evento',
+    deprecated: true,
+  })
   createBooking(@Param('userId') userId: string, @Body() body: Input) {
     return this.service.createBooking(userId, body);
   }
@@ -144,6 +147,14 @@ export class PetcareController {
   @Get('users/:userId/notifications')
   notifications(@Param('userId') userId: string) {
     return this.service.listNotifications(userId);
+  }
+
+  @Post('payments')
+  @ApiOperation({
+    summary: 'Crea un pago y publica payment.confirmed para reservar',
+  })
+  paymentRequest(@Body() body: Input) {
+    return this.service.createPayment(body);
   }
 
   @Post('payments/mock')

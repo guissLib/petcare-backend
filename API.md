@@ -36,26 +36,63 @@ Todos los cuerpos usan JSON. Los endpoints principales son:
 - `POST /pets/:petId/vaccinations` para registrar documentos mediante `documentUrl`
 - `GET /providers?city=&serviceType=`
 - `GET /providers/:providerId/availability?date=YYYY-MM-DD`
-- `POST /users/:userId/bookings`, `GET /bookings`, `GET /bookings/:bookingId`
+- `POST /payments` para iniciar un pago y solicitar una reserva
+- `GET /bookings?paymentId=`, `GET /bookings`, `GET /bookings/:bookingId`
 - `PATCH /bookings/:bookingId/status` con `confirmed`, `rejected`, `in-progress`,
   `completed` o `cancelled`
 - `POST /bookings/:bookingId/reminder`
 - `GET /promotions`, `POST /promotions`
 - `POST /maps/geocode`
 - `GET /users/:userId/notifications`
+- `POST /users/:userId/bookings` se mantiene como ruta de compatibilidad
 - `POST /payments/mock`
 
 Los servicios de veterinaria y boarding requieren al menos una vacuna vigente.
-Las reservas validan pertenencia de la mascota, modalidad a domicilio,
-disponibilidad, capacidad y promociones nacionales/locales.
+El frontend debe enviar primero `POST /payments` con los datos de la reserva
+embebidos. Cuando el pago online queda confirmado, el backend publica el evento
+`payment.confirmed`; el consumidor de reservas valida la mascota, modalidad,
+disponibilidad, capacidad y promociones, y crea la reserva de forma asíncrona.
+
+Ejemplo de solicitud:
+
+```json
+{
+  "amount": 45000,
+  "method": "online",
+  "booking": {
+    "userId": "user_123",
+    "petId": "pet_123",
+    "providerId": "provider_centro",
+    "serviceType": "grooming",
+    "visitMode": "at-location",
+    "scheduledAt": "2030-01-01T10:00:00.000Z"
+  }
+}
+```
+
+La respuesta contiene `bookingStatus: "queued"` y el frontend puede consultar
+`GET /bookings?paymentId=<payment-id>` hasta que el consumidor confirme la
+reserva.
 
 ## Integraciones simuladas
 
-`payments/mock` y el pago de una reserva generan referencias `MOCK-*`; no
-contactan una pasarela. `maps/geocode` devuelve coordenadas determinísticas
+`payments` y `payments/mock` generan referencias `MOCK-*`; no contactan una
+pasarela de pago real. `maps/geocode` devuelve coordenadas determinísticas
 simuladas. Las notificaciones de confirmación, rechazo y finalización se
 guardan localmente y se entregan con el canal `mock-push`.
 
-Para producción se debe sustituir `PetcareService` por repositorios persistentes,
-autenticación/autorización, almacenamiento de archivos y adaptadores reales de
-pagos, mapas y notificaciones.
+## CloudAMQP
+
+Configure `CLOUDAMQP_URL` o `AMQP_URL` en `.env`. El backend crea un exchange
+`petcare.events`, una cola durable y publica `payment.confirmed` con mensajes
+persistentes. Si no se configura CloudAMQP, se usa un bus local únicamente para
+desarrollo.
+
+Los errores permanentes de negocio, como `Usuario no encontrado`, no se
+reintentan indefinidamente: el evento se confirma y se mueve a
+`AMQP_DEAD_LETTER_QUEUE`. Los errores transitorios se reintentan hasta
+`AMQP_MAX_RETRIES` veces.
+
+Para producción se deben sustituir los adaptadores mock de pago, mapas y
+notificaciones, además de agregar autenticación/autorización y almacenamiento
+de archivos.

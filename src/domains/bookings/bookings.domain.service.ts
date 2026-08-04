@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PetcareStoreService } from '../../application/petcare-store.service';
@@ -12,9 +13,12 @@ import {
   now,
   required,
 } from '../shared/input';
-import { Booking, BookingStatus } from '../shared/petcare.types';
+import {
+  Booking,
+  BookingStatus,
+  PaymentConfirmedEvent,
+} from '../shared/petcare.types';
 import { NotificationsDomainService } from '../notifications/notifications.domain.service';
-import { PaymentsDomainService } from '../payments/payments.domain.service';
 import { PetsDomainService } from '../pets/pets.domain.service';
 import { ProvidersDomainService } from '../providers/providers.domain.service';
 import { PromotionsDomainService } from '../promotions/promotions.domain.service';
@@ -22,6 +26,8 @@ import { UsersDomainService } from '../users/users.domain.service';
 
 @Injectable()
 export class BookingsDomainService {
+  private readonly logger = new Logger(BookingsDomainService.name);
+
   constructor(
     private readonly store: PetcareStoreService,
     private readonly users: UsersDomainService,
@@ -29,56 +35,50 @@ export class BookingsDomainService {
     private readonly providers: ProvidersDomainService,
     private readonly promotions: PromotionsDomainService,
     private readonly notifications: NotificationsDomainService,
-    private readonly payments: PaymentsDomainService,
   ) {}
 
-  create(userId: string, input: Input) {
-    const user = this.users.getById(userId);
-    required(input, [
-      'petId',
-      'providerId',
-      'serviceType',
-      'visitMode',
-      'scheduledAt',
-      'paymentMethod',
-    ]);
-    const petId = stringValue(input, 'petId');
-    const providerId = stringValue(input, 'providerId');
-    const serviceType = stringValue(
-      input,
-      'serviceType',
-    ) as Booking['serviceType'];
-    const visitMode = stringValue(input, 'visitMode') as Booking['visitMode'];
-    const scheduledAt = stringValue(input, 'scheduledAt');
-    const paymentMethod = stringValue(
-      input,
-      'paymentMethod',
-    ) as Booking['paymentMethod'];
-    const address = optionalString(input, 'address');
-    const notes = optionalString(input, 'notes');
+  createFromPayment(event: PaymentConfirmedEvent) {
+    const existing = this.store.data.bookings.find(
+      (booking) => booking.payment.id === event.payment.id,
+    );
+    if (existing) {
+      this.logger.warn(
+        `[BOOKING_DUPLICATE_IGNORED] eventId=${event.eventId} ` +
+          `paymentId=${event.payment.id} bookingId=${existing.id}`,
+      );
+      return existing;
+    }
 
-    const pet = this.pets.getById(petId);
-    if (pet.ownerId !== userId) {
+    const request = event.booking;
+    const payment = event.payment;
+    this.logger.log(
+      `[BOOKING_CREATION_STARTED] eventId=${event.eventId} ` +
+        `paymentId=${payment.id} userId=${request.userId} ` +
+        `providerId=${request.providerId} serviceType=${request.serviceType}`,
+    );
+    const user = this.users.getById(request.userId);
+    const pet = this.pets.getById(request.petId);
+    if (pet.ownerId !== request.userId) {
       throw new BadRequestException('La mascota no pertenece al usuario');
     }
 
-    const provider = this.providers.getById(providerId);
-    if (!provider.services.includes(serviceType)) {
+    const provider = this.providers.getById(request.providerId);
+    if (!provider.services.includes(request.serviceType)) {
       throw new BadRequestException('El proveedor no ofrece ese servicio');
     }
-    if (visitMode === 'home-visit' && !provider.acceptsHomeVisits) {
+    if (request.visitMode === 'home-visit' && !provider.acceptsHomeVisits) {
       throw new BadRequestException(
         'El proveedor no ofrece visitas a domicilio',
       );
     }
-    if (visitMode === 'home-visit' && !address) {
+    if (request.visitMode === 'home-visit' && !request.address) {
       throw new BadRequestException(
         'address es requerido para visita a domicilio',
       );
     }
 
     const availability = this.providers.availability(provider.id, {
-      date: scheduledAt.slice(0, 10),
+      date: request.scheduledAt.slice(0, 10),
     });
     if (!availability.available) {
       throw new BadRequestException(
@@ -86,7 +86,9 @@ export class BookingsDomainService {
       );
     }
 
-    const needsVaccination = ['veterinary', 'boarding'].includes(serviceType);
+    const needsVaccination = ['veterinary', 'boarding'].includes(
+      request.serviceType,
+    );
     if (
       needsVaccination &&
       !pet.vaccinationRecords.some(
@@ -99,56 +101,55 @@ export class BookingsDomainService {
       );
     }
 
-    const baseTotal = Number(input.total ?? 50000);
-    if (!Number.isFinite(baseTotal) || baseTotal <= 0) {
-      throw new BadRequestException('total debe ser positivo');
-    }
     const promotion = this.promotions
       .list({ city: user.city, providerId: provider.id })
       .find(
-        (item) => !item.serviceTypes || item.serviceTypes.includes(serviceType),
+        (item) =>
+          !item.serviceTypes || item.serviceTypes.includes(request.serviceType),
       );
-    const total = Math.round(
-      baseTotal * (1 - (promotion?.discountPercent ?? 0) / 100),
-    );
-    const payment = this.payments.createBookingPayment(total, paymentMethod);
     const booking: Booking = {
       id: createId('booking'),
-      userId,
-      petId,
+      userId: request.userId,
+      petId: request.petId,
       providerId: provider.id,
-      serviceType,
-      visitMode,
-      scheduledAt,
-      address,
-      notes,
+      serviceType: request.serviceType,
+      visitMode: request.visitMode,
+      scheduledAt: request.scheduledAt,
+      address: request.address,
+      notes: request.notes,
       status: 'confirmed',
-      total,
+      total: payment.amount,
       payment,
-      paymentMethod,
+      paymentMethod: payment.method,
       promotionId: promotion?.id,
       createdAt: now(),
     };
 
     this.store.data.bookings.push(booking);
     this.notifications.send(
-      userId,
+      request.userId,
       booking,
       'confirmation',
-      `Reserva ${booking.id} confirmada`,
+      `Reserva ${booking.id} confirmada después del pago ${payment.reference}`,
     );
     void this.store.persist();
+    this.logger.log(
+      `[BOOKING_CREATED] eventId=${event.eventId} paymentId=${payment.id} ` +
+        `bookingId=${booking.id} status=${booking.status} total=${booking.total}`,
+    );
     return booking;
   }
 
   list(query: Input) {
     const userId = optionalString(query, 'userId');
     const providerId = optionalString(query, 'providerId');
+    const paymentId = optionalString(query, 'paymentId');
     const status = optionalString(query, 'status') as BookingStatus | undefined;
     return this.store.data.bookings.filter(
       (booking) =>
         (!userId || booking.userId === userId) &&
         (!providerId || booking.providerId === providerId) &&
+        (!paymentId || booking.payment.id === paymentId) &&
         (!status || booking.status === status),
     );
   }

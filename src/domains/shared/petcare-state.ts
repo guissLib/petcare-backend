@@ -1,9 +1,17 @@
-import { Booking, Notification, Pet, Promotion, User } from './petcare.types';
+import {
+  Booking,
+  Notification,
+  Payment,
+  Pet,
+  Promotion,
+  User,
+} from './petcare.types';
 
 export interface PetcareState {
   users: User[];
   pets: Pet[];
   bookings: Booking[];
+  payments: Payment[];
   promotions: Promotion[];
   notifications: Notification[];
 }
@@ -12,6 +20,7 @@ export const createInitialState = (): PetcareState => ({
   users: [],
   pets: [],
   bookings: [],
+  payments: [],
   promotions: [
     {
       id: 'promo_nacional_10',

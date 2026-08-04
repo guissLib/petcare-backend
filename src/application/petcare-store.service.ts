@@ -25,6 +25,7 @@ export class PetcareStoreService implements OnModuleInit {
       users: storedState.users ?? [],
       pets: storedState.pets ?? [],
       bookings: storedState.bookings ?? [],
+      payments: storedState.payments ?? [],
       notifications: storedState.notifications ?? [],
       promotions: storedState.promotions?.length
         ? storedState.promotions

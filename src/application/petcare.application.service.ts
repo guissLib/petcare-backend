@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { PETCARE_EVENT_BUS } from './ports/event-bus.port';
+import type { PetcareEventBus } from './ports/event-bus.port';
 import { BookingsDomainService } from '../domains/bookings/bookings.domain.service';
 import { MapsDomainService } from '../domains/maps/maps.domain.service';
 import { NotificationsDomainService } from '../domains/notifications/notifications.domain.service';
@@ -22,6 +24,8 @@ export class PetcareApplicationService {
     private readonly notifications: NotificationsDomainService,
     private readonly payments: PaymentsDomainService,
     private readonly maps: MapsDomainService,
+    @Inject(PETCARE_EVENT_BUS)
+    private readonly eventBus: PetcareEventBus,
   ) {}
 
   health() {
@@ -29,6 +33,7 @@ export class PetcareApplicationService {
       service: 'petcare-home-services',
       status: 'ok',
       mode: this.store.persistenceMode,
+      eventBus: this.eventBus.isAvailable() ? 'cloudamqp' : 'in-memory',
       timestamp: now(),
     };
   }
@@ -81,8 +86,13 @@ export class PetcareApplicationService {
     return this.maps.geocode(input);
   }
 
-  createBooking(userId: string, input: Input) {
-    return this.bookings.create(userId, input);
+  async createBooking(userId: string, input: Input) {
+    return this.payments.requestPayment({
+      ...input,
+      userId,
+      amount: input.amount ?? input.total ?? 50000,
+      method: input.method ?? input.paymentMethod ?? 'online',
+    });
   }
 
   listBookings(query: Input) {
@@ -103,6 +113,10 @@ export class PetcareApplicationService {
 
   listNotifications(userId: string) {
     return this.notifications.listByUser(userId);
+  }
+
+  createPayment(input: Input) {
+    return this.payments.requestPayment(input);
   }
 
   mockPayment(input: Input) {

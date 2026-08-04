@@ -6,13 +6,16 @@ Person(provider, "Proveedor", "Gestiona disponibilidad y actualiza o rechaza res
 System_Ext(web, "PetCare Web", "Frontend responsive Next.js para dueños de mascotas.")
 System(petcare, "PetCare Home Services", "Backend NestJS organizado por paquetes de dominio para mascotas, servicios y reservas.")
 System_Ext(mysql, "MySQL / Aiven", "Persistencia opcional del estado de la aplicación.")
+System_Ext(amqp, "CloudAMQP", "Broker RabbitMQ para eventos de pagos confirmados.")
 
 Rel(owner, web, "Usa")
 Rel(provider, web, "Usa")
 Rel(web, petcare, "Consume API REST", "HTTP/JSON")
 Rel(petcare, mysql, "Persiste estado cuando está habilitado", "MySQL/TLS")
+Rel(petcare, amqp, "Publica payment.confirmed", "AMQP/TLS")
 
 UpdateElementStyle(web, $bgColor="#ef846c", $fontColor="white")
 UpdateElementStyle(petcare, $bgColor="#1168bd", $fontColor="white")
 UpdateElementStyle(mysql, $bgColor="#777777", $fontColor="white")
+UpdateElementStyle(amqp, $bgColor="#f0ad4e", $fontColor="black")
 UpdateRelStyle(petcare, mysql, $textColor="#555555", $lineColor="#555555")
