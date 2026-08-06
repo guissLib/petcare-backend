@@ -1,29 +1,33 @@
 C4Container
-title PetCare Home Services - C4 Container Diagram
+title PetCare Home Services - Diagrama de Contenedores
 
-Person(owner, "Dueño de mascota", "Agenda y consulta reservas.")
-Person(provider, "Proveedor", "Administra servicios y estados.")
+Person(owner, "Dueño de mascota", "Consulta servicios, paga y agenda reservas.")
+Person(provider, "Proveedor", "Gestiona servicios y reservas.")
 
-System_Boundary(petcare, "PetCare Home Services") {
-  Container(api, "REST API", "NestJS / TypeScript", "Expone endpoints de usuarios, mascotas, proveedores, reservas y promociones.")
-  Container(swagger, "Swagger UI", "OpenAPI", "Documenta y permite probar la API.")
-  Container(domain, "PetcareService", "NestJS Provider", "Aplica reglas de disponibilidad, vacunación, capacidad, promociones y reservas.")
-  Container(mock, "Mock Adapters", "TypeScript", "Simula pagos, mapas y notificaciones sin llamadas externas.")
-  ContainerDb(memory, "In-memory Store", "Arrays TypeScript", "Almacenamiento local cuando MySQL está desactivado.")
+System_Ext(google_maps, "Google Maps Platform", "Proporciona mapas, geolocalización y cálculo de rutas.")
+
+System_Boundary(petcare, "PetCare System") {
+    Container(frontend, "PetCare Web", "React", "Interfaz web para clientes y proveedores.")
+    Container(backend, "PetCare Backend Service", "NestJS / TypeScript", "API REST, reglas de negocio, pagos y gestión de reservas.")
+    ContainerDb(database, "PetCare Database", "MySQL", "Almacena usuarios, mascotas, servicios, reservas y pagos. Desplegada en Aiven.")
 }
 
-ContainerDb(mysql, "MySQL Persistence", "MySQL / mysql2", "Tabla petcare_state con estado persistido. Se activa con MYSQL_ENABLED=true.")
+Rel(owner, frontend, "Usa", "HTTPS")
+Rel(provider, frontend, "Usa", "HTTPS")
 
-Rel(owner, api, "Gestiona mascotas y reservas", "HTTP/JSON")
-Rel(provider, api, "Gestiona disponibilidad y estados", "HTTP/JSON")
-Rel(owner, swagger, "Explora endpoints", "HTTP")
-Rel(api, domain, "Invoca casos de uso")
-Rel(swagger, api, "Consulta contrato OpenAPI")
-Rel(domain, mock, "Solicita operaciones simuladas")
-Rel(domain, memory, "Lee/escribe cuando MySQL está desactivado")
-Rel(domain, mysql, "Lee/escribe cuando MySQL está activado")
+Rel(frontend, backend, "Consume la API", "JSON/HTTPS")
+Rel(backend, database, "Lee y escribe datos", "MySQL/TLS")
+Rel(frontend, google_maps, "Consulta mapas, ubicaciones y rutas", "HTTPS/API")
 
-UpdateElementStyle(api, $bgColor="#438dd5", $fontColor="white")
-UpdateElementStyle(domain, $bgColor="#85bbf0", $fontColor="black")
-UpdateElementStyle(mock, $bgColor="#f0ad4e", $fontColor="black")
-UpdateElementStyle(mysql, $bgColor="#777777", $fontColor="white")
+UpdateRelStyle(owner, frontend, $offsetX="-40", $offsetY="-20")
+UpdateRelStyle(provider, frontend, $offsetX="40", $offsetY="-20")
+UpdateRelStyle(frontend, backend, $offsetY="-35")
+UpdateRelStyle(backend, database, $offsetY="35")
+UpdateRelStyle(backend, google_maps, $offsetY="-30")
+
+UpdateElementStyle(frontend, $bgColor="#ef846c", $fontColor="white")
+UpdateElementStyle(backend, $bgColor="#438dd5", $fontColor="white")
+UpdateElementStyle(database, $bgColor="#4ade80", $fontColor="black")
+UpdateElementStyle(google_maps, $bgColor="#f0ad4e", $fontColor="black")
+
+UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
