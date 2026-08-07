@@ -5,7 +5,7 @@ Los diagramas están escritos en Mermaid usando la sintaxis C4 integrada.
 ## Niveles
 
 - `01-system-context.mmd`: actores y dependencias externas del sistema.
-- `02-containers.mmd`: API REST, dominio, persistencia y adaptadores.
+- `02-containers.mmd`: frontend, backend NestJS, MySQL y mapas.
 - `03-components.mmd`: componentes principales del backend NestJS.
 
 ## Visualizar
@@ -22,8 +22,15 @@ en Markdown usando:
 
 ## Decisiones representadas
 
-- MySQL es la persistencia opcional configurada mediante `MYSQL_ENABLED=true`.
-- En modo local, el dominio usa almacenamiento en memoria.
-- Pagos, geocodificación y notificaciones no contactan servicios externos:
-  se representan como adaptadores mock internos.
-- La aplicación expone la API y Swagger a través del mismo backend NestJS.
+- La capa de dominio no depende de NestJS, MySQL ni de proveedores externos.
+- La capa de aplicación coordina casos de uso y aplica las reglas entre
+  agregados.
+- Los contratos de repositorio y gateways viven como puertos; infraestructura
+  los implementa con repositorios TypeORM y adaptadores mock.
+- MySQL se administra mediante migraciones TypeORM, con
+  `synchronize=false` y TLS verificable.
+- El seed inicial crea el administrador, proveedores y promoción base de forma
+  idempotente.
+- La aplicación expone la API y Swagger bajo `/api-docs` a través del backend.
+- El login emite JWT, el guard protege los endpoints y las contraseñas se
+  verifican contra hashes scrypt.

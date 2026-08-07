@@ -17,18 +17,26 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "typeorm": "typeorm -d dist/infrastructure/persistence/data-source.js",
+    "migration:run": "npm run build && npm run typeorm -- migration:run",
+    "migration:revert": "npm run build && npm run typeorm -- migration:revert",
+    "migration:show": "npm run build && npm run typeorm -- migration:show",
+    "seed:base": "npm run build && node dist/infrastructure/persistence/seeds/run-base-seed.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
+    "@nestjs/jwt": "^11.0.2",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.4.6",
+    "@nestjs/typeorm": "^11.0.3",
     "dotenv": "^17.4.2",
     "mysql2": "^3.23.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "typeorm": "^1.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -61,15 +69,15 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": ".",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.(t|j)s"
     ],
-    "coverageDirectory": "../coverage",
+    "coverageDirectory": "coverage",
     "testEnvironment": "node"
   }
 }

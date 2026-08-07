@@ -7,7 +7,7 @@ Person(provider, "Proveedor", "Gestiona servicios y reservas.")
 System_Ext(google_maps, "Google Maps Platform", "Proporciona mapas, geolocalización y cálculo de rutas.")
 
 System_Boundary(petcare, "PetCare System") {
-    Container(frontend, "PetCare Web", "React", "Interfaz web para clientes y proveedores.")
+    Container(frontend, "PetCare Web", "Next.js", "Interfaz web para clientes y proveedores.")
     Container(backend, "PetCare Backend Service", "NestJS / TypeScript", "API REST, reglas de negocio, pagos y gestión de reservas.")
     ContainerDb(database, "PetCare Database", "MySQL", "Almacena usuarios, mascotas, servicios, reservas y pagos. Desplegada en Aiven.")
 }
@@ -17,7 +17,7 @@ Rel(provider, frontend, "Usa", "HTTPS")
 
 Rel(frontend, backend, "Consume la API", "JSON/HTTPS")
 Rel(backend, database, "Lee y escribe datos", "MySQL/TLS")
-Rel(frontend, google_maps, "Consulta mapas, ubicaciones y rutas", "HTTPS/API")
+Rel(backend, google_maps, "Consulta mapas, ubicaciones y rutas", "HTTPS/API")
 
 UpdateRelStyle(owner, frontend, $offsetX="-40", $offsetY="-20")
 UpdateRelStyle(provider, frontend, $offsetX="40", $offsetY="-20")
