@@ -1,0 +1,59 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title PetCare - Monolito Modular (Diagrama de Componentes C4)
+
+Person(owner, "Dueño de mascota", "Consulta servicios y agenda reservas")
+Person(providerUser, "Proveedor", "Gestiona servicios y reservas")
+
+System_Boundary(petcare, "PetCare System") {
+    
+    Container(web, "PetCare Web (Frontend)", "Next.js", "Interfaz web")
+
+    Container_Boundary(backend, "PetCare Backend (Monolito Modular)") {
+        Component(booking, "Booking Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de reservas")
+        Component(payment, "Payment Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de pagos")
+        Component(user, "User Module", "Controllers · Use Cases\nDomain · Infrastructure", "Usuarios y autenticación")
+        Component(pet, "Pet Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de mascotas")
+        Component(provider, "Provider Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de proveedores")
+        Component(notification, "Notification Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de notificaciones")
+        Component(promotion, "Promotion Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de promociones")
+        Component(shared, "Shared Kernel", "Shared Domain", "Value Objects, Interfaces\nDomain Events, Exceptions")
+    }
+
+    ContainerDb(database, "MySQL", "Aiven", "Persistencia")
+}
+
+System_Ext(maps, "Google Maps Platform", "Geolocalización")
+
+' 1. Flujo de entrada de usuarios
+Rel(owner, web, "Usa", "HTTPS")
+Rel(providerUser, web, "Usa", "HTTPS")
+
+' 2. Web a Backend (Conexión abstracta al contexto del monolito)
+Rel(web, backend, "Consume API", "REST")
+
+' 3. Comunicación interna entre módulos (Cascada vertical descendente)
+Rel(booking, payment, "Solicita pago")
+Rel(booking, pet, "Consulta")
+Rel(booking, provider, "Consulta")
+Rel(booking, notification, "Publica evento")
+Rel(payment, promotion, "Aplica promoción")
+
+' 4. Dependencias al Shared Kernel 
+Rel(booking, shared, "Usa")
+Rel(payment, shared, "Usa")
+Rel(user, shared, "Usa")
+Rel(pet, shared, "Usa")
+Rel(provider, shared, "Usa")
+Rel(notification, shared, "Usa")
+Rel(promotion, shared, "Usa")
+
+' 5. Backend a Base de Datos (El backend completo apunta a la DB)
+Rel(backend, database, "Lee/Escribe", "Conexión DB")
+
+' 6. Salida al Sistema Externo (El sistema PetCare completo apunta a Maps)
+Rel(petcare, maps, "Consume API para geolocalización", "REST")
+
+SHOW_LEGEND()
+@enduml
