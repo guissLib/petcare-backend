@@ -1,13 +1,18 @@
 C4Context
-    title PetCare Home Services - C4 System Context
+title PetCare Home Services - C4 System Context
 
-    Person(owner, "Dueño de mascota", "Crea perfiles, consulta servicios y agenda reservas.")
-    Person(provider, "Proveedor", "Gestiona disponibilidad y actualiza o rechaza reservas.")
-    System(petcare, "PetCare Home System", "Gestiona mascotas, vacunas, proveedores, promociones y reservas.")
-    System_Ext(google_services, "Google Maps Platform", "Proporciona mapas, geolocalización y servicios de rutas.")
+Person(owner, "Dueño de mascota", "Crea perfiles, consulta servicios y agenda reservas.")
+Person(provider, "Proveedor", "Gestiona disponibilidad y actualiza o rechaza reservas.")
 
-    Rel(owner, petcare, "Usa")
-    Rel(provider, petcare, "Usa")
-    Rel(petcare, google_services, "Consulta mapas y servicios de ubicación", "HTTPS/API")
+System(petcare, "PetCare Home System", "Gestiona mascotas, vacunas, proveedores, promociones y reservas.")
 
-    UpdateElementStyle(petcare, $bgColor="#1168bd", $fontColor="white")
+System_Ext(google_services, "Google Maps Platform", "Proporciona mapas, geolocalización y servicios de rutas.")
+System_Ext(cloudamqp, "CloudAMQP", "Servicio administrado que proporciona RabbitMQ para mensajería.")
+
+Rel(owner, petcare, "Usa")
+Rel(provider, petcare, "Usa")
+
+Rel(petcare, google_services, "Consulta mapas y servicios de ubicación", "HTTPS/API")
+Rel(petcare, cloudamqp, "Envía y recibe mensajes", "AMQP/RabbitMQ")
+
+UpdateElementStyle(petcare, $bgColor="#1168bd", $fontColor="white")

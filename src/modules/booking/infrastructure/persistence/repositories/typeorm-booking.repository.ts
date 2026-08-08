@@ -97,6 +97,7 @@ function toDomain(record: BookingOrmEntity) {
     notes: optionalText(record.notes),
     status: record.status as
       | 'pending'
+      | 'pending-confirmation'
       | 'confirmed'
       | 'rejected'
       | 'in-progress'

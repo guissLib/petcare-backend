@@ -7,5 +7,5 @@ export const BOOKING_PAYMENT_TRANSACTION = Symbol(
 
 export interface BookingPaymentTransaction {
   savePending(payment: Payment, booking: Booking): Promise<void>;
-  saveConfirmed(payment: Payment, booking: Booking): Promise<void>;
+  saveAfterPayment(payment: Payment, booking: Booking): Promise<void>;
 }

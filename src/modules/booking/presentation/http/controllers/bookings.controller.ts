@@ -45,7 +45,10 @@ export class BookingsController {
   }
 
   @Post('bookings/:bookingId/payments/mock')
-  @ApiOperation({ summary: 'Procesa el pago mock de una reserva pendiente' })
+  @ApiOperation({
+    summary:
+      'Procesa el pago mock y publica la confirmación asíncrona en RabbitMQ',
+  })
   @ApiParam({ name: 'bookingId', example: 'booking_123' })
   @ApiBody({ type: MockCardPaymentDto })
   pay(

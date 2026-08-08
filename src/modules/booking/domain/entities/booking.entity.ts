@@ -155,9 +155,17 @@ export class Booking {
   }
 
   changeStatus(status: BookingStatus, reason?: string) {
-    if (this.props.status === 'pending' && status === 'confirmed') {
+    if (status === 'pending-confirmation') {
       throw new BusinessRuleError(
-        'Una reserva pendiente de pago solo puede confirmarse después del pago',
+        'La reserva solo puede pasar a confirmación desde el módulo de pago',
+      );
+    }
+    if (
+      ['pending', 'pending-confirmation'].includes(this.props.status) &&
+      status === 'confirmed'
+    ) {
+      throw new BusinessRuleError(
+        'Una reserva pendiente solo puede confirmarse mediante el flujo de pago',
       );
     }
     if (!this.allowedTransitions()[this.props.status].includes(status)) {
@@ -171,6 +179,22 @@ export class Booking {
     }
   }
 
+  markPendingConfirmation(paymentStatus: PaymentStatus) {
+    if (paymentStatus !== 'paid') {
+      throw new BusinessRuleError(
+        'La reserva solo puede pasar a confirmación después de un pago aprobado',
+      );
+    }
+    if (this.props.status === 'pending-confirmation') {
+      return;
+    }
+    if (this.props.status !== 'pending') {
+      throw new BusinessRuleError('La reserva no está pendiente de pago');
+    }
+    this.props.status = 'pending-confirmation';
+    this.props.paymentExpiresAt = undefined;
+  }
+
   confirmAfterPayment(paymentStatus: PaymentStatus) {
     if (paymentStatus !== 'paid') {
       throw new BusinessRuleError(
@@ -180,9 +204,9 @@ export class Booking {
     if (this.props.status === 'confirmed') {
       return;
     }
-    if (this.props.status !== 'pending') {
+    if (this.props.status !== 'pending-confirmation') {
       throw new BusinessRuleError(
-        'La reserva no está pendiente de confirmación por pago',
+        'La reserva no está pendiente de confirmación',
       );
     }
     this.props.status = 'confirmed';
@@ -252,7 +276,8 @@ export class Booking {
 
   private allowedTransitions(): Record<BookingStatus, BookingStatus[]> {
     return {
-      pending: ['confirmed', 'rejected', 'cancelled'],
+      pending: ['pending-confirmation', 'rejected', 'cancelled'],
+      'pending-confirmation': ['confirmed', 'cancelled'],
       confirmed: ['in-progress', 'rejected', 'cancelled'],
       rejected: [],
       'in-progress': ['completed', 'cancelled'],

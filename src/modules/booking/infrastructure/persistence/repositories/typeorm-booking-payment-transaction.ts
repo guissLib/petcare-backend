@@ -14,7 +14,7 @@ export class TypeOrmBookingPaymentTransaction {
     await this.saveBoth(payment, booking);
   }
 
-  async saveConfirmed(payment: Payment, booking: Booking) {
+  async saveAfterPayment(payment: Payment, booking: Booking) {
     await this.saveBoth(payment, booking);
   }
 

@@ -46,6 +46,7 @@ import { PROMOTION_REPOSITORY } from '../../promotion/domain/repositories/promot
 import type { PromotionRepository } from '../../promotion/domain/repositories/promotion.repository';
 import { EVENT_BUS } from '../../shared-kernel/application/ports/event-bus.port';
 import type { EventBus } from '../../shared-kernel/application/ports/event-bus.port';
+import type { PaymentConfirmedMessage } from '../../shared-kernel/application/ports/payment-event-bus.port';
 
 export interface BookingActor {
   id: string;
@@ -236,13 +237,20 @@ export class BookingsApplicationService {
     if (payment.method !== 'online') {
       throw new BusinessRuleError('Esta reserva no requiere un pago online');
     }
-    if (booking.status !== 'pending') {
-      if (booking.status === 'confirmed' && payment.status === 'paid') {
-        return {
-          booking: await this.response(booking, actor),
-          payment: payment.toPrimitives(),
-        };
+    if (
+      ['confirmed', 'pending-confirmation'].includes(booking.status) &&
+      payment.status === 'paid'
+    ) {
+      if (booking.status === 'pending-confirmation') {
+        await this.paymentService.publishPaymentConfirmed(payment, booking);
       }
+      return {
+        booking: await this.response(booking, actor),
+        payment: payment.toPrimitives(),
+        confirmationStatus: booking.status,
+      };
+    }
+    if (booking.status !== 'pending') {
       throw new BusinessRuleError('La reserva ya no está pendiente de pago');
     }
     if (payment.amount !== booking.toPrimitives().total) {
@@ -265,13 +273,49 @@ export class BookingsApplicationService {
         payment: processed.toPrimitives(),
       };
     }
-    booking.confirmAfterPayment(processed.status);
-    await this.saveConfirmedPayment(processed, booking);
-    await this.publishBookingConfirmed(booking);
+    booking.markPendingConfirmation(processed.status);
+    await this.savePaymentAndBooking(processed, booking);
+    await this.paymentService.publishPaymentConfirmed(processed, booking);
     return {
       booking: await this.response(booking, actor),
       payment: processed.toPrimitives(),
+      confirmationStatus: 'pending-confirmation' as const,
     };
+  }
+
+  async confirmFromPaymentEvent(message: PaymentConfirmedMessage) {
+    const booking = await this.getBooking(message.bookingId);
+    const data = booking.toPrimitives();
+    if (
+      data.userId !== message.userId ||
+      data.providerId !== message.providerId ||
+      data.paymentId !== message.paymentId ||
+      data.total !== message.amount ||
+      data.currency !== message.currency
+    ) {
+      throw new BusinessRuleError(
+        'El evento de pago no coincide con la reserva',
+      );
+    }
+    const payment = await this.getPayment(data.paymentId);
+    if (
+      (payment.userId && payment.userId !== message.userId) ||
+      payment.status !== 'paid' ||
+      payment.amount !== data.total
+    ) {
+      throw new BusinessRuleError(
+        'No se puede confirmar una reserva sin un pago aprobado',
+      );
+    }
+    if (booking.status === 'confirmed') {
+      return;
+    }
+    if (booking.status === 'pending') {
+      booking.markPendingConfirmation(payment.status);
+    }
+    booking.confirmAfterPayment(payment.status);
+    await this.bookings.save(booking);
+    await this.publishBookingConfirmed(booking);
   }
 
   async expirePendingPayments() {
@@ -329,12 +373,12 @@ export class BookingsApplicationService {
     await this.bookings.save(booking);
   }
 
-  private async saveConfirmedPayment(
+  private async savePaymentAndBooking(
     payment: Awaited<ReturnType<PaymentsApplicationService['createPending']>>,
     booking: Booking,
   ) {
     if (this.paymentTransaction) {
-      await this.paymentTransaction.saveConfirmed(payment, booking);
+      await this.paymentTransaction.saveAfterPayment(payment, booking);
       return;
     }
     await this.paymentService.save(payment);
@@ -396,7 +440,10 @@ export class BookingsApplicationService {
     const bookings = await this.bookings.findAll();
     const filtered = bookings.filter(
       (booking) =>
-        !(actor?.role === 'provider' && booking.status === 'pending') &&
+        !(
+          actor?.role === 'provider' &&
+          ['pending', 'pending-confirmation'].includes(booking.status)
+        ) &&
         (!scopedQuery.userId ||
           booking.toPrimitives().userId === text(scopedQuery, 'userId')) &&
         (!scopedQuery.providerId ||
@@ -589,7 +636,7 @@ export class BookingsApplicationService {
       actor.role === 'provider' &&
       actor.providerId &&
       booking.providerId === actor.providerId &&
-      booking.status !== 'pending'
+      !['pending', 'pending-confirmation'].includes(booking.status)
     ) {
       return;
     }
@@ -604,7 +651,7 @@ export class BookingsApplicationService {
       actor.role === 'provider' &&
       actor.providerId &&
       booking.providerId === actor.providerId &&
-      booking.status !== 'pending'
+      !['pending', 'pending-confirmation'].includes(booking.status)
     ) {
       return;
     }
@@ -742,6 +789,7 @@ function readVisitMode(
 function readBookingStatus(value: unknown): BookingStatus {
   if (
     value === 'pending' ||
+    value === 'pending-confirmation' ||
     value === 'confirmed' ||
     value === 'rejected' ||
     value === 'in-progress' ||

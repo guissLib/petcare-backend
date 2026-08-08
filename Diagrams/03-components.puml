@@ -1,4 +1,5 @@
 @startuml
+
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
 
 title PetCare - Monolito Modular (Diagrama de Componentes C4)
@@ -7,18 +8,27 @@ Person(owner, "Dueño de mascota", "Consulta servicios y agenda reservas")
 Person(providerUser, "Proveedor", "Gestiona servicios y reservas")
 
 System_Boundary(petcare, "PetCare System") {
-    
+
     Container(web, "PetCare Web (Frontend)", "Next.js", "Reservas, checkout y gestión")
 
     Container_Boundary(backend, "PetCare Backend (Monolito Modular)") {
-        Component(booking, "Booking Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de reservas")
-        Component(payment, "Payment Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de pagos")
+
+        Component(booking, "Booking Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de reservas y consumidor de pagos")
+
+        Component(payment, "Payment Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de pagos y publicación de eventos")
+
         Component(user, "User Module", "Controllers · Use Cases\nDomain · Infrastructure", "Usuarios y autenticación")
+
         Component(pet, "Pet Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de mascotas")
+
         Component(provider, "Provider Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de proveedores")
+
         Component(notification, "Notification Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de notificaciones")
+
         Component(promotion, "Promotion Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de promociones")
+
         Component(shared, "Shared Kernel", "Shared Domain", "Value Objects, Interfaces\nDomain Events, Exceptions")
+
         Component(eventBus, "Local Event Bus", "Application Port · Adapter", "Entrega eventos dentro del monolito")
     }
 
@@ -27,23 +37,58 @@ System_Boundary(petcare, "PetCare System") {
 
 System_Ext(maps, "Google Maps Platform", "Geolocalización")
 
+System_Ext(rabbitmq, "CloudAMQP - RabbitMQ", "RabbitMQ administrado por CloudAMQP para mensajería asíncrona")
+
+
+' =========================================================
 ' 1. Flujo de entrada de usuarios
+' =========================================================
+
 Rel(owner, web, "Usa", "HTTPS")
 Rel(providerUser, web, "Usa", "HTTPS")
 
-' 2. Web a Backend (Conexión abstracta al contexto del monolito)
+
+' =========================================================
+' 2. Web a Backend
+' =========================================================
+
 Rel(web, backend, "Consume API", "REST")
 
-' 3. Comunicación interna y confirmación post-pago
+
+' =========================================================
+' 3. Comunicación interna
+' =========================================================
+
 Rel(web, booking, "Crea reserva y abre checkout")
-Rel(booking, payment, "Crea intención y procesa pago")
+
+Rel(booking, payment, "Solicita intención y procesa checkout")
+
 Rel(booking, pet, "Consulta")
 Rel(booking, provider, "Consulta")
 Rel(booking, promotion, "Calcula cotización")
-Rel(booking, eventBus, "Publica booking.confirmed después de paid")
+
+
+' =========================================================
+' 4. Mensajería asíncrona mediante RabbitMQ / CloudAMQP
+' =========================================================
+
+Rel(payment, rabbitmq, "Publica payment.confirmed", "AMQP")
+
+Rel(rabbitmq, booking, "Entrega payment.confirmed", "AMQP")
+
+
+' =========================================================
+' 5. Event Bus local para eventos internos
+' =========================================================
+
+Rel(booking, eventBus, "Publica booking.confirmed después de consumir payment.confirmed")
 Rel(eventBus, notification, "Entrega evento idempotente")
 
-' 4. Dependencias al Shared Kernel 
+
+' =========================================================
+' 6. Dependencias al Shared Kernel
+' =========================================================
+
 Rel(booking, shared, "Usa")
 Rel(payment, shared, "Usa")
 Rel(user, shared, "Usa")
@@ -53,11 +98,21 @@ Rel(notification, shared, "Usa")
 Rel(promotion, shared, "Usa")
 Rel(eventBus, shared, "Usa")
 
-' 5. Backend a Base de Datos (El backend completo apunta a la DB)
+
+' =========================================================
+' 7. Backend a Base de Datos
+' =========================================================
+
 Rel(backend, database, "Lee/Escribe", "Conexión DB")
 
-' 6. Salida al Sistema Externo (El sistema PetCare completo apunta a Maps)
+
+' =========================================================
+' 8. Salida al Sistema Externo
+' =========================================================
+
 Rel(petcare, maps, "Consume API para geolocalización", "REST")
 
+
 SHOW_LEGEND()
+
 @enduml

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PETCARE_PAYMENT_GATEWAY } from '../shared-kernel/application/ports/integration.ports';
+import { SharedKernelModule } from '../shared-kernel/shared-kernel.module';
 import { PAYMENT_REPOSITORY } from './domain/repositories/payment.repository';
 import { PaymentsApplicationService } from './application/payments.application.service';
 import { MockPaymentGateway } from './infrastructure/integrations/mock-payment.gateway';
@@ -9,7 +10,7 @@ import { TypeOrmPaymentRepository } from './infrastructure/persistence/repositor
 import { PaymentsController } from './presentation/http/controllers/payments.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PaymentOrmEntity])],
+  imports: [TypeOrmModule.forFeature([PaymentOrmEntity]), SharedKernelModule],
   controllers: [PaymentsController],
   providers: [
     TypeOrmPaymentRepository,

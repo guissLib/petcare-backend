@@ -53,6 +53,7 @@ describe('BookingsApplicationService payment flow', () => {
         payment.markPaid('2026-08-01T00:01:00.000Z');
         return Promise.resolve(payment);
       }),
+      publishPaymentConfirmed: jest.fn().mockResolvedValue(undefined),
       save: jest.fn(),
       charge: jest.fn(),
     };
@@ -65,7 +66,7 @@ describe('BookingsApplicationService payment flow', () => {
         pendingBooking = booking;
         return Promise.resolve();
       }),
-      saveConfirmed: jest.fn(() => Promise.resolve()),
+      saveAfterPayment: jest.fn(() => Promise.resolve()),
     };
     const service = new BookingsApplicationService(
       { findById: jest.fn().mockResolvedValue(user) } as never,
@@ -113,14 +114,12 @@ describe('BookingsApplicationService payment flow', () => {
       { id: 'user_1', role: 'pet-owner' },
     );
 
-    expect(paid.booking.status).toBe('confirmed');
+    expect(paid.booking.status).toBe('pending-confirmation');
     expect(paid.payment.status).toBe('paid');
-    expect(transaction.saveConfirmed).toHaveBeenCalled();
-    expect(eventBus.publish).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventName: 'booking.confirmed',
-        aggregateId: pendingBooking.id,
-      }),
+    expect(transaction.saveAfterPayment).toHaveBeenCalled();
+    expect(paymentService.publishPaymentConfirmed).toHaveBeenCalledWith(
+      payment,
+      pendingBooking,
     );
 
     const repeated = await service.pay(
@@ -136,6 +135,32 @@ describe('BookingsApplicationService payment flow', () => {
     );
 
     expect(repeated.payment.status).toBe('paid');
+    expect(paymentService.publishPaymentConfirmed).toHaveBeenCalledTimes(2);
+
+    await service.confirmFromPaymentEvent({
+      eventId: 'payment-event_1',
+      eventName: 'payment.confirmed',
+      paymentId: payment.id,
+      bookingId: pendingBooking.id,
+      userId: user.id,
+      providerId: provider.id,
+      amount: payment.amount,
+      currency: payment.toPrimitives().currency,
+      occurredAt: '2026-08-01T00:02:00.000Z',
+    });
+    await service.confirmFromPaymentEvent({
+      eventId: 'payment-event_1-retry',
+      eventName: 'payment.confirmed',
+      paymentId: payment.id,
+      bookingId: pendingBooking.id,
+      userId: user.id,
+      providerId: provider.id,
+      amount: payment.amount,
+      currency: payment.toPrimitives().currency,
+      occurredAt: '2026-08-01T00:02:00.000Z',
+    });
+
+    expect(pendingBooking.status).toBe('confirmed');
     expect(eventBus.publish).toHaveBeenCalledTimes(1);
   });
 });

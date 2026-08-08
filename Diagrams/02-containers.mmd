@@ -1,10 +1,14 @@
 C4Container
 title PetCare Home Services - Diagrama de Contenedores
 
+
 Person(owner, "Dueño de mascota", "Consulta servicios, paga y agenda reservas.")
 Person(provider, "Proveedor", "Gestiona servicios y reservas.")
 
+
 System_Ext(google_maps, "Google Maps Platform", "Proporciona mapas, geolocalización y cálculo de rutas.")
+System_Ext(cloudamqp, "CloudAMQP", "Servicio administrado que proporciona RabbitMQ para mensajería.")
+
 
 System_Boundary(petcare, "PetCare System") {
     Container(frontend, "PetCare Web", "Next.js", "Interfaz web para clientes y proveedores.")
@@ -12,22 +16,30 @@ System_Boundary(petcare, "PetCare System") {
     ContainerDb(database, "PetCare Database", "MySQL", "Almacena usuarios, mascotas, servicios, reservas y pagos. Desplegada en Aiven.")
 }
 
+
 Rel(owner, frontend, "Usa", "HTTPS")
 Rel(provider, frontend, "Usa", "HTTPS")
+
 
 Rel(frontend, backend, "Consume la API", "JSON/HTTPS")
 Rel(backend, database, "Lee y escribe datos", "MySQL/TLS")
 Rel(backend, google_maps, "Consulta mapas, ubicaciones y rutas", "HTTPS/API")
+Rel(backend, cloudamqp, "Publica y consume mensajes", "AMQP/RabbitMQ")
+
 
 UpdateRelStyle(owner, frontend, $offsetX="-40", $offsetY="-20")
 UpdateRelStyle(provider, frontend, $offsetX="40", $offsetY="-20")
 UpdateRelStyle(frontend, backend, $offsetY="-35")
 UpdateRelStyle(backend, database, $offsetY="35")
 UpdateRelStyle(backend, google_maps, $offsetY="-30")
+UpdateRelStyle(backend, cloudamqp, $offsetY="-30")
+
 
 UpdateElementStyle(frontend, $bgColor="#ef846c", $fontColor="white")
 UpdateElementStyle(backend, $bgColor="#438dd5", $fontColor="white")
 UpdateElementStyle(database, $bgColor="#4ade80", $fontColor="black")
 UpdateElementStyle(google_maps, $bgColor="#f0ad4e", $fontColor="black")
+UpdateElementStyle(cloudamqp, $bgColor="#f0ad4e", $fontColor="black")
+
 
 UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")

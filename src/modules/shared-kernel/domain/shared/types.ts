@@ -11,6 +11,7 @@ export type ServiceType =
 export type DiscountType = 'percent' | 'fixed';
 export type BookingStatus =
   | 'pending'
+  | 'pending-confirmation'
   | 'confirmed'
   | 'rejected'
   | 'in-progress'

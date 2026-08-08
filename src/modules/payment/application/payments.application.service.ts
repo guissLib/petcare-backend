@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   BusinessRuleError,
   EntityNotFoundError,
@@ -12,6 +12,8 @@ import type {
   MockPaymentCard,
   PaymentGateway,
 } from '../../shared-kernel/application/ports/integration.ports';
+import { PAYMENT_EVENT_PUBLISHER } from '../../shared-kernel/application/ports/payment-event-bus.port';
+import type { PaymentEventPublisher } from '../../shared-kernel/application/ports/payment-event-bus.port';
 import {
   createId,
   numberValue,
@@ -27,6 +29,9 @@ export class PaymentsApplicationService {
     private readonly payments: PaymentRepository,
     @Inject(PETCARE_PAYMENT_GATEWAY)
     private readonly gateway: PaymentGateway,
+    @Optional()
+    @Inject(PAYMENT_EVENT_PUBLISHER)
+    private readonly eventPublisher?: PaymentEventPublisher,
   ) {}
 
   async create(input: Input) {
@@ -105,6 +110,33 @@ export class PaymentsApplicationService {
   async save(payment: Payment) {
     await this.payments.save(payment);
     return payment;
+  }
+
+  async publishPaymentConfirmed(
+    payment: Payment,
+    booking: {
+      id: string;
+      userId: string;
+      providerId: string;
+    },
+  ) {
+    if (!this.eventPublisher) {
+      throw new BusinessRuleError(
+        'El publicador de eventos de pago no está disponible',
+      );
+    }
+    const data = payment.toPrimitives();
+    await this.eventPublisher.publishPaymentConfirmed({
+      eventId: createId('payment-event'),
+      eventName: 'payment.confirmed',
+      paymentId: data.id,
+      bookingId: booking.id,
+      userId: booking.userId,
+      providerId: booking.providerId,
+      amount: data.amount,
+      currency: data.currency,
+      occurredAt: now(),
+    });
   }
 
   async pay(input: Input, payment: Payment) {

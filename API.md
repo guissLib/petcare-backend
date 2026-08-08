@@ -65,7 +65,9 @@ La mayoría de cuerpos usan JSON; la carga de carnets usa
   intención de pago y deja la reserva en `pending` durante 30 minutos; para
   `at-location` conserva la confirmación inmediata.
 - `POST /bookings/:bookingId/payments/mock` procesa el checkout de tarjeta
-  simulado. Solo un pago `paid` confirma una reserva online y dispara la
+  simulado. Cuando el pago queda `paid`, Payment publica `payment.confirmed`
+  en RabbitMQ y devuelve la reserva como `pending-confirmation`. Booking
+  consume el mensaje, confirma la reserva y recién entonces dispara la
   notificación al proveedor.
 - `GET /bookings`, `GET /bookings/:bookingId`
 - `PATCH /bookings/:bookingId/status` con `rejected`, `in-progress`,
@@ -100,18 +102,23 @@ se almacenan. Para probar un rechazo, use un número de tarjeta terminado en
 Los servicios de grooming, boarding y cleaning requieren un carnet PDF vigente.
 Las reservas validan pertenencia de la mascota, modalidad a domicilio,
 coordenadas dentro de Bolivia, disponibilidad, capacidad y promociones
-nacionales/locales. Las reservas online pendientes no ocupan capacidad ni son
-visibles para el proveedor; al aprobarse el pago se confirma la reserva y se
-publica un evento local idempotente para crear las notificaciones del cliente y
-del operador del proveedor. Además, MySQL impide por trigger que una reserva
-online llegue a `confirmed`, `in-progress` o `completed` si su pago no está
-`paid`. La dirección de un domicilio se oculta al proveedor hasta que la
+nacionales/locales. Las reservas online en `pending` no ocupan capacidad ni
+son visibles para el proveedor. Tras el pago pasan a
+`pending-confirmation`, reservan la capacidad del horario, pero siguen ocultas
+al proveedor hasta que Booking consuma el evento `payment.confirmed` desde
+RabbitMQ y las pase a `confirmed`. El evento de confirmación local es
+idempotente y crea las notificaciones del cliente y del operador del
+proveedor. Además, MySQL impide por trigger que una reserva online llegue a
+`pending-confirmation`, `confirmed`, `in-progress` o `completed` si su pago no
+está `paid`. La dirección de un domicilio se oculta al proveedor hasta que la
 reserva esté confirmada.
 
 ## Integraciones simuladas
 
 `payments/mock` y el pago de una reserva generan referencias `MOCK-*`; no
-contactan una pasarela. `maps/geocode` consulta Google Maps mediante la clave
+contactan una pasarela. RabbitMQ/CloudAMQP transporta el evento
+`payment.confirmed` con una cola durable de Booking y una cola de mensajes
+fallidos. `maps/geocode` consulta Google Maps mediante la clave
 de servidor y limita el resultado a Bolivia. Las notificaciones de
 confirmación, rechazo y finalización se guardan localmente y se entregan con el
 canal `mock-push`.

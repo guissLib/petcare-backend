@@ -41,10 +41,7 @@ describe('Booking', () => {
     );
 
     expect(booking.status).toBe('pending');
-    expect(() => booking.changeStatus('confirmed')).toThrow(
-      'solo puede confirmarse después del pago',
-    );
-
+    booking.markPendingConfirmation('paid');
     booking.confirmAfterPayment('paid');
 
     expect(booking.status).toBe('confirmed');

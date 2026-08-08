@@ -11,6 +11,7 @@ import { BOOKING_REPOSITORY } from './domain/repositories/booking.repository';
 import { BOOKING_PAYMENT_TRANSACTION } from './domain/repositories/booking-payment-transaction';
 import { BookingsApplicationService } from './application/bookings.application.service';
 import { PendingBookingExpirationScheduler } from './application/pending-booking-expiration.scheduler';
+import { PaymentConfirmedConsumer } from './application/payment-confirmed.consumer';
 import { BookingOrmEntity } from './infrastructure/persistence/entities/booking.orm-entity';
 import { TypeOrmBookingRepository } from './infrastructure/persistence/repositories/typeorm-booking.repository';
 import { TypeOrmBookingPaymentTransaction } from './infrastructure/persistence/repositories/typeorm-booking-payment-transaction';
@@ -41,6 +42,7 @@ import { BookingsController } from './presentation/http/controllers/bookings.con
     },
     BookingsApplicationService,
     PendingBookingExpirationScheduler,
+    PaymentConfirmedConsumer,
   ],
   exports: [BOOKING_REPOSITORY, BookingsApplicationService],
 })

@@ -342,6 +342,7 @@ export class CreatePetcareSchema1770000000000 implements MigrationInterface {
           CHECK (
             status IN (
               'pending',
+              'pending-confirmation',
               'confirmed',
               'rejected',
               'in-progress',
@@ -435,7 +436,12 @@ async function createOnlineBookingPaymentTriggers(queryRunner: QueryRunner) {
     BEGIN
       DECLARE payment_status VARCHAR(16);
       IF NEW.payment_method = 'online'
-         AND NEW.status IN ('confirmed', 'in-progress', 'completed') THEN
+         AND NEW.status IN (
+           'pending-confirmation',
+           'confirmed',
+           'in-progress',
+           'completed'
+         ) THEN
         SELECT status INTO payment_status
         FROM payments
         WHERE id = NEW.payment_id
@@ -454,7 +460,12 @@ async function createOnlineBookingPaymentTriggers(queryRunner: QueryRunner) {
     BEGIN
       DECLARE payment_status VARCHAR(16);
       IF NEW.payment_method = 'online'
-         AND NEW.status IN ('confirmed', 'in-progress', 'completed') THEN
+         AND NEW.status IN (
+           'pending-confirmation',
+           'confirmed',
+           'in-progress',
+           'completed'
+         ) THEN
         SELECT status INTO payment_status
         FROM payments
         WHERE id = NEW.payment_id
