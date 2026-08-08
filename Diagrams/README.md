@@ -1,12 +1,14 @@
 # Diagramas C4 - PetCare Home Services
 
-Los diagramas están escritos en Mermaid usando la sintaxis C4 integrada.
+Los diagramas C4 están disponibles en Mermaid y PlantUML.
 
 ## Niveles
 
 - `01-system-context.mmd`: actores y dependencias externas del sistema.
 - `02-containers.mmd`: frontend, backend NestJS, MySQL y mapas.
-- `03-components.mmd`: componentes principales del backend NestJS.
+- `03-components.mmd`: módulos principales del monolito modular NestJS.
+- `03-components.puml` y `03-components.png`: versión C4 equivalente para
+  PlantUML.
 
 ## Visualizar
 
@@ -34,3 +36,5 @@ en Markdown usando:
 - La aplicación expone la API y Swagger bajo `/api-docs` a través del backend.
 - El login emite JWT, el guard protege los endpoints y las contraseñas se
   verifican contra hashes scrypt.
+- Cada módulo de negocio contiene internamente `presentation`, `application`,
+  `domain` e `infrastructure`; `src/app.module.ts` solo realiza la composición.

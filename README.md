@@ -1,98 +1,99 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# PetCare Home Services API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend NestJS para reservas de servicios de mascotas. La aplicación es un
+monolito modular: cada módulo agrupa sus capas de presentación, aplicación,
+dominio e infraestructura sin cambiar los endpoints públicos.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Estructura
 
-## Description
+El código de negocio está en `src/modules`:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- `booking`: creación, consulta y ciclo de vida de reservas.
+- `payment`: pagos y gateway de pago.
+- `user`: usuarios, registro, autenticación JWT y hash scrypt.
+- `pet`: mascotas y vacunaciones.
+- `provider`: proveedores, servicios y disponibilidad.
+- `notification`: notificaciones asociadas a usuarios y reservas.
+- `promotion`: promociones nacionales y locales.
+- `shared-kernel`: value objects, errores, eventos, tipos y utilidades
+  compartidas.
+- `map` y `system`: adaptadores técnicos para geolocalización y health check.
 
-## Project setup
+Dentro de cada módulo:
 
-```bash
-$ npm install
+```text
+presentation -> application -> domain
+                      |
+                      v
+                 infrastructure
 ```
 
-## Compile and run the project
+`src/app.module.ts` solo compone los módulos Nest. Los contratos de
+repositorio permanecen en el dominio y los adaptadores TypeORM en la
+infraestructura de cada módulo.
+
+## Ejecución
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
+npm run start:dev
 ```
 
-## Run tests
+La API queda disponible en `http://localhost:3005/api`. Swagger está en
+`http://localhost:3005/api-docs` y el contrato OpenAPI en
+`http://localhost:3005/api-docs/openapi.json`.
+
+## MySQL
+
+1. Cree la base de datos y un usuario con permisos sobre ella.
+2. Copie `.env.example` a `.env` y configure sus credenciales.
+3. Si el servidor requiere TLS con una CA privada, configure `MYSQL_SSL=true` y
+   `MYSQL_SSL_CA` con la ruta del certificado.
+4. Ejecute las migraciones:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run migration:run
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Las entidades se encuentran dentro de los módulos y TypeORM las descubre
+mediante el patrón configurado en
+`src/modules/shared-kernel/infrastructure/persistence/typeorm.config.ts`.
+El esquema usa `synchronize=false`. Para cargar el administrador, proveedores y
+promoción base configure las variables `ADMIN_SEED_*` y ejecute:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run seed:base
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+El seed es idempotente. Las contraseñas se almacenan únicamente como hashes
+scrypt.
 
-## Resources
+## API y autenticación
 
-Check out a few resources that may come in handy when working with NestJS:
+- `POST /users`, `GET /users`.
+- `POST /auth/login`.
+- `POST /users/:userId/pets`, `GET /users/:userId/pets`.
+- `POST /pets/:petId/vaccinations`.
+- `GET /providers?city=&serviceType=`.
+- `GET /providers/:providerId/availability?date=YYYY-MM-DD`.
+- `POST /users/:userId/bookings`, `GET /bookings`,
+  `GET /bookings/:bookingId`.
+- `PATCH /bookings/:bookingId/status` y
+  `POST /bookings/:bookingId/reminder`.
+- `GET /promotions`, `POST /promotions`.
+- `POST /maps/geocode`.
+- `GET /users/:userId/notifications`.
+- `POST /payments` o `POST /payments/mock`.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+El registro (`POST /users`), login, raíz y health check son públicos. Los demás
+endpoints requieren `Authorization: Bearer <accessToken>`. Configure
+`AUTH_JWT_SECRET` con al menos 32 caracteres y
+`AUTH_JWT_EXPIRES_IN_SECONDS` para definir la vigencia.
 
-## Support
+## Pruebas
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+```bash
+npm run lint
+npm test
+npm run build
+```

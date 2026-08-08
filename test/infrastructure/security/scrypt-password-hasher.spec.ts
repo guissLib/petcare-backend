@@ -1,7 +1,7 @@
 import {
   hashWithScrypt,
   verifyWithScrypt,
-} from '../../../src/infrastructure/security/scrypt-password-hasher';
+} from '../../../src/modules/user/infrastructure/security/scrypt-password-hasher';
 
 describe('scrypt password hashing', () => {
   it('returns a salted hash without exposing the password', async () => {

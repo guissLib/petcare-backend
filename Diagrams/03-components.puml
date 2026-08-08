@@ -8,7 +8,7 @@ Person(providerUser, "Proveedor", "Gestiona servicios y reservas")
 
 System_Boundary(petcare, "PetCare System") {
     
-    Container(web, "PetCare Web (Frontend)", "Next.js", "Interfaz web")
+    Container(web, "PetCare Web (Frontend)", "Next.js", "Reservas, checkout y gestión")
 
     Container_Boundary(backend, "PetCare Backend (Monolito Modular)") {
         Component(booking, "Booking Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de reservas")
@@ -19,6 +19,7 @@ System_Boundary(petcare, "PetCare System") {
         Component(notification, "Notification Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de notificaciones")
         Component(promotion, "Promotion Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de promociones")
         Component(shared, "Shared Kernel", "Shared Domain", "Value Objects, Interfaces\nDomain Events, Exceptions")
+        Component(eventBus, "Local Event Bus", "Application Port · Adapter", "Entrega eventos dentro del monolito")
     }
 
     ContainerDb(database, "MySQL", "Aiven", "Persistencia")
@@ -33,12 +34,14 @@ Rel(providerUser, web, "Usa", "HTTPS")
 ' 2. Web a Backend (Conexión abstracta al contexto del monolito)
 Rel(web, backend, "Consume API", "REST")
 
-' 3. Comunicación interna entre módulos (Cascada vertical descendente)
-Rel(booking, payment, "Solicita pago")
+' 3. Comunicación interna y confirmación post-pago
+Rel(web, booking, "Crea reserva y abre checkout")
+Rel(booking, payment, "Crea intención y procesa pago")
 Rel(booking, pet, "Consulta")
 Rel(booking, provider, "Consulta")
-Rel(booking, notification, "Publica evento")
-Rel(payment, promotion, "Aplica promoción")
+Rel(booking, promotion, "Calcula cotización")
+Rel(booking, eventBus, "Publica booking.confirmed después de paid")
+Rel(eventBus, notification, "Entrega evento idempotente")
 
 ' 4. Dependencias al Shared Kernel 
 Rel(booking, shared, "Usa")
@@ -48,6 +51,7 @@ Rel(pet, shared, "Usa")
 Rel(provider, shared, "Usa")
 Rel(notification, shared, "Usa")
 Rel(promotion, shared, "Usa")
+Rel(eventBus, shared, "Usa")
 
 ' 5. Backend a Base de Datos (El backend completo apunta a la DB)
 Rel(backend, database, "Lee/Escribe", "Conexión DB")

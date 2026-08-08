@@ -18,11 +18,11 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "typeorm": "typeorm -d dist/infrastructure/persistence/data-source.js",
+    "typeorm": "typeorm -d dist/modules/shared-kernel/infrastructure/persistence/data-source.js",
     "migration:run": "npm run build && npm run typeorm -- migration:run",
     "migration:revert": "npm run build && npm run typeorm -- migration:revert",
     "migration:show": "npm run build && npm run typeorm -- migration:show",
-    "seed:base": "npm run build && node dist/infrastructure/persistence/seeds/run-base-seed.js"
+    "seed:base": "npm run build && node dist/modules/shared-kernel/infrastructure/persistence/seeds/run-base-seed.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

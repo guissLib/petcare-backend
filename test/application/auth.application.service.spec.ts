@@ -1,9 +1,9 @@
 import { JwtService } from '@nestjs/jwt';
-import { User } from '../../src/domain/entities/user.entity';
-import { AuthApplicationService } from '../../src/application/auth.application.service';
-import type { PasswordHasher } from '../../src/application/ports/password-hasher.port';
-import type { ProviderRepository } from '../../src/domain/repositories/provider.repository';
-import type { UserRepository } from '../../src/domain/repositories/user.repository';
+import { User } from '../../src/modules/user/domain/entities/user.entity';
+import { AuthApplicationService } from '../../src/modules/user/application/auth.application.service';
+import type { PasswordHasher } from '../../src/modules/user/application/ports/password-hasher.port';
+import type { ProviderRepository } from '../../src/modules/provider/domain/repositories/provider.repository';
+import type { UserRepository } from '../../src/modules/user/domain/repositories/user.repository';
 
 describe('AuthApplicationService', () => {
   const user = User.create({

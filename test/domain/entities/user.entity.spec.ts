@@ -1,4 +1,4 @@
-import { User } from '../../../src/domain/entities/user.entity';
+import { User } from '../../../src/modules/user/domain/entities/user.entity';
 
 describe('User', () => {
   it('normalizes the email of a pet owner', () => {
