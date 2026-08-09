@@ -18,7 +18,7 @@ export type BookingStatus =
   | 'completed'
   | 'cancelled';
 export type PaymentMethod = 'online' | 'at-location';
-export type PaymentStatus = 'paid' | 'pending' | 'failed';
+export type PaymentStatus = 'paid' | 'pending' | 'failed' | 'refunded';
 
 export interface Schedule {
   dayOfWeek: number;

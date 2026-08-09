@@ -4,6 +4,7 @@ import { PETCARE_PAYMENT_GATEWAY } from '../shared-kernel/application/ports/inte
 import { SharedKernelModule } from '../shared-kernel/shared-kernel.module';
 import { PAYMENT_REPOSITORY } from './domain/repositories/payment.repository';
 import { PaymentsApplicationService } from './application/payments.application.service';
+import { PaymentSagaConsumer } from './application/payment-saga.consumer';
 import { MockPaymentGateway } from './infrastructure/integrations/mock-payment.gateway';
 import { PaymentOrmEntity } from './infrastructure/persistence/entities/payment.orm-entity';
 import { TypeOrmPaymentRepository } from './infrastructure/persistence/repositories/typeorm-payment.repository';
@@ -23,6 +24,7 @@ import { PaymentsController } from './presentation/http/controllers/payments.con
       useClass: MockPaymentGateway,
     },
     PaymentsApplicationService,
+    PaymentSagaConsumer,
   ],
   exports: [PAYMENT_REPOSITORY, PaymentsApplicationService],
 })

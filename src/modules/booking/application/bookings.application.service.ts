@@ -47,6 +47,7 @@ import type { PromotionRepository } from '../../promotion/domain/repositories/pr
 import { EVENT_BUS } from '../../shared-kernel/application/ports/event-bus.port';
 import type { EventBus } from '../../shared-kernel/application/ports/event-bus.port';
 import type { PaymentConfirmedMessage } from '../../shared-kernel/application/ports/payment-event-bus.port';
+import type { SagaMessage } from '../../shared-kernel/application/ports/saga-message-bus.port';
 
 export interface BookingActor {
   id: string;
@@ -284,22 +285,40 @@ export class BookingsApplicationService {
   }
 
   async confirmFromPaymentEvent(message: PaymentConfirmedMessage) {
-    const booking = await this.getBooking(message.bookingId);
+    const booking = await this.confirmPayment(message);
+    await this.publishBookingConfirmed(booking);
+  }
+
+  async confirmFromPaymentCommand(message: SagaMessage) {
+    return this.confirmPayment(message);
+  }
+
+  private async confirmPayment(message: PaymentConfirmedMessage | SagaMessage) {
+    const bookingId = requiredMessageText(message.bookingId, 'bookingId');
+    const userId = requiredMessageText(message.userId, 'userId');
+    const providerId = requiredMessageText(message.providerId, 'providerId');
+    const paymentId = requiredMessageText(message.paymentId, 'paymentId');
+    const amount = requiredMessageNumber(message.amount, 'amount');
+    const currency = requiredMessageText(message.currency, 'currency');
+    const booking = await this.getBooking(bookingId);
     const data = booking.toPrimitives();
     if (
-      data.userId !== message.userId ||
-      data.providerId !== message.providerId ||
-      data.paymentId !== message.paymentId ||
-      data.total !== message.amount ||
-      data.currency !== message.currency
+      data.userId !== userId ||
+      data.providerId !== providerId ||
+      data.paymentId !== paymentId ||
+      data.total !== amount ||
+      data.currency !== currency
     ) {
       throw new BusinessRuleError(
         'El evento de pago no coincide con la reserva',
       );
     }
+    // throw new BusinessRuleError(
+    //   'No quedan mas reservas disponibles para este proveedor',
+    // );
     const payment = await this.getPayment(data.paymentId);
     if (
-      (payment.userId && payment.userId !== message.userId) ||
+      (payment.userId && payment.userId !== userId) ||
       payment.status !== 'paid' ||
       payment.amount !== data.total
     ) {
@@ -308,14 +327,37 @@ export class BookingsApplicationService {
       );
     }
     if (booking.status === 'confirmed') {
-      return;
+      return booking;
     }
     if (booking.status === 'pending') {
       booking.markPendingConfirmation(payment.status);
     }
     booking.confirmAfterPayment(payment.status);
     await this.bookings.save(booking);
-    await this.publishBookingConfirmed(booking);
+    return booking;
+  }
+
+  async cancelFromSaga(bookingId: string | undefined, reason?: string) {
+    const booking = await this.getBooking(
+      requiredMessageText(bookingId, 'bookingId'),
+    );
+    if (
+      [
+        'cancelled',
+        'rejected',
+        'confirmed',
+        'in-progress',
+        'completed',
+      ].includes(booking.status)
+    ) {
+      return booking;
+    }
+    booking.changeStatus(
+      'cancelled',
+      reason?.trim() || 'Compensación de la reserva Saga',
+    );
+    await this.bookings.save(booking);
+    return booking;
   }
 
   async expirePendingPayments() {
@@ -713,6 +755,20 @@ export class BookingsApplicationService {
     }
     return payment;
   }
+}
+
+function requiredMessageText(value: unknown, field: string) {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new BusinessRuleError(`Mensaje Saga sin ${field}`);
+  }
+  return value.trim();
+}
+
+function requiredMessageNumber(value: unknown, field: string) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    throw new BusinessRuleError(`Mensaje Saga sin ${field} válido`);
+  }
+  return value;
 }
 
 function optionalNumber(input: Input, field: string) {

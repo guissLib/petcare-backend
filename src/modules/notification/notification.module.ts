@@ -5,7 +5,7 @@ import { ProviderModule } from '../provider/provider.module';
 import { SharedKernelModule } from '../shared-kernel/shared-kernel.module';
 import { NOTIFICATION_REPOSITORY } from './domain/repositories/notification.repository';
 import { NotificationsApplicationService } from './application/notifications.application.service';
-import { BookingConfirmedNotificationHandler } from './application/booking-confirmed-notification.handler';
+import { NotificationSagaConsumer } from './application/notification-saga.consumer';
 import { NotificationOrmEntity } from './infrastructure/persistence/entities/notification.orm-entity';
 import { TypeOrmNotificationRepository } from './infrastructure/persistence/repositories/typeorm-notification.repository';
 import { NotificationsController } from './presentation/http/controllers/notifications.controller';
@@ -25,7 +25,7 @@ import { NotificationsController } from './presentation/http/controllers/notific
       useExisting: TypeOrmNotificationRepository,
     },
     NotificationsApplicationService,
-    BookingConfirmedNotificationHandler,
+    NotificationSagaConsumer,
   ],
   exports: [NOTIFICATION_REPOSITORY, NotificationsApplicationService],
 })

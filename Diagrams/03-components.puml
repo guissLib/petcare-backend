@@ -2,7 +2,7 @@
 
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
 
-title PetCare - Monolito Modular (Diagrama de Componentes C4)
+title PetCare - Componentes y Orquestación Saga (Diagrama C4)
 
 Person(owner, "Dueño de mascota", "Consulta servicios y agenda reservas")
 Person(providerUser, "Proveedor", "Gestiona servicios y reservas")
@@ -38,6 +38,7 @@ System_Boundary(petcare, "PetCare System") {
 System_Ext(maps, "Google Maps Platform", "Geolocalización")
 
 System_Ext(rabbitmq, "CloudAMQP - RabbitMQ", "RabbitMQ administrado por CloudAMQP para mensajería asíncrona")
+System_Ext(orchestrator, "Orchestration Service", "Orquestador Saga de pagos, reservas y notificaciones")
 
 
 ' =========================================================
@@ -73,16 +74,18 @@ Rel(booking, promotion, "Calcula cotización")
 ' =========================================================
 
 Rel(payment, rabbitmq, "Publica payment.confirmed", "AMQP")
-
-Rel(rabbitmq, booking, "Entrega payment.confirmed", "AMQP")
+Rel(rabbitmq, orchestrator, "Entrega payment.confirmed", "AMQP")
+Rel(orchestrator, rabbitmq, "Publica comandos y eventos Saga", "AMQP")
+Rel(rabbitmq, booking, "Entrega booking.confirm / cancel", "AMQP")
+Rel(rabbitmq, notification, "Entrega notification.send", "AMQP")
+Rel(rabbitmq, payment, "Entrega payment.refund", "AMQP")
 
 
 ' =========================================================
 ' 5. Event Bus local para eventos internos
 ' =========================================================
 
-Rel(booking, eventBus, "Publica booking.confirmed después de consumir payment.confirmed")
-Rel(eventBus, notification, "Entrega evento idempotente")
+Rel(booking, eventBus, "Eventos internos no coordinados por Saga")
 
 
 ' =========================================================

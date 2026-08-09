@@ -42,3 +42,6 @@ en Markdown usando:
 - Payment publica `payment.confirmed` en RabbitMQ/CloudAMQP después de persistir
   un pago aprobado; Booking consume el mensaje y confirma la reserva de forma
   idempotente antes de notificar al proveedor.
+- `orchestration-service` coordina el proceso como una Saga: mantiene el
+  estado y un outbox ACID, usa Booking como transacción pivote, compensa el
+  pago con un reembolso si la reserva falla y reintenta las notificaciones.

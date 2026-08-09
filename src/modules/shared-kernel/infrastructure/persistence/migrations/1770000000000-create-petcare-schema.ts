@@ -174,7 +174,7 @@ export class CreatePetcareSchema1770000000000 implements MigrationInterface {
         CONSTRAINT CHK_payments_method
           CHECK (method IN ('online', 'at-location')),
         CONSTRAINT CHK_payments_status
-          CHECK (status IN ('paid', 'pending', 'failed')),
+          CHECK (status IN ('paid', 'pending', 'failed', 'refunded')),
         CONSTRAINT CHK_payments_amount
           CHECK (amount > 0),
         CONSTRAINT CHK_payments_currency

@@ -7,6 +7,13 @@ import { NOTIFICATION_REPOSITORY } from '../domain/repositories/notification.rep
 import type { NotificationRepository } from '../domain/repositories/notification.repository';
 import { USER_REPOSITORY } from '../../user/domain/repositories/user.repository';
 import type { UserRepository } from '../../user/domain/repositories/user.repository';
+import { PROVIDER_REPOSITORY } from '../../provider/domain/repositories/provider.repository';
+import type { ProviderRepository } from '../../provider/domain/repositories/provider.repository';
+import { Notification } from '../domain/entities/notification.entity';
+import {
+  createId,
+  now,
+} from '../../shared-kernel/application/shared/application.utils';
 
 @Injectable()
 export class NotificationsApplicationService {
@@ -15,6 +22,8 @@ export class NotificationsApplicationService {
     private readonly notifications: NotificationRepository,
     @Inject(USER_REPOSITORY)
     private readonly users: UserRepository,
+    @Inject(PROVIDER_REPOSITORY)
+    private readonly providers: ProviderRepository,
   ) {}
 
   async listByUser(
@@ -32,5 +41,52 @@ export class NotificationsApplicationService {
     }
     const notifications = await this.notifications.findByUserId(userId);
     return notifications.map((notification) => notification.toPrimitives());
+  }
+
+  async sendBookingConfirmation(input: {
+    bookingId: string;
+    userId: string;
+    providerId: string;
+  }) {
+    await this.saveConfirmation(
+      input.userId,
+      input.bookingId,
+      `Reserva ${input.bookingId} confirmada`,
+    );
+    const provider = await this.providers.findById(input.providerId);
+    const operatorUserId = provider?.toPrimitives().operatorUserId;
+    if (operatorUserId) {
+      await this.saveConfirmation(
+        operatorUserId,
+        input.bookingId,
+        `Nueva reserva pagada ${input.bookingId}`,
+      );
+    }
+  }
+
+  private async saveConfirmation(
+    userId: string,
+    bookingId: string,
+    message: string,
+  ) {
+    if (
+      await this.notifications.findByUserBookingAndType(
+        userId,
+        bookingId,
+        'confirmation',
+      )
+    ) {
+      return;
+    }
+    await this.notifications.save(
+      Notification.create({
+        id: createId('notification'),
+        userId,
+        bookingId,
+        type: 'confirmation',
+        message,
+        sentAt: now(),
+      }),
+    );
   }
 }

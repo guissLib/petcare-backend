@@ -13,7 +13,9 @@ System_Ext(cloudamqp, "CloudAMQP", "Servicio administrado que proporciona Rabbit
 System_Boundary(petcare, "PetCare System") {
     Container(frontend, "PetCare Web", "Next.js", "Interfaz web para clientes y proveedores.")
     Container(backend, "PetCare Backend Service", "NestJS / TypeScript", "API REST, reglas de negocio, pagos y gestión de reservas.")
+    Container(orchestrator, "Orchestration Service", "NestJS / TypeScript", "Orquestador Saga para coordinar pagos, reservas y notificaciones.")
     ContainerDb(database, "PetCare Database", "MySQL", "Almacena usuarios, mascotas, servicios, reservas y pagos. Desplegada en Aiven.")
+    ContainerDb(orchestration_database, "Orchestration Database", "MySQL", "Estado durable de Sagas y outbox transaccional.")
 }
 
 
@@ -25,6 +27,8 @@ Rel(frontend, backend, "Consume la API", "JSON/HTTPS")
 Rel(backend, database, "Lee y escribe datos", "MySQL/TLS")
 Rel(backend, google_maps, "Consulta mapas, ubicaciones y rutas", "HTTPS/API")
 Rel(backend, cloudamqp, "Publica y consume mensajes", "AMQP/RabbitMQ")
+Rel(orchestrator, cloudamqp, "Publica comandos y consume eventos", "AMQP/RabbitMQ")
+Rel(orchestrator, orchestration_database, "Persiste Sagas y outbox", "MySQL/TLS")
 
 
 UpdateRelStyle(owner, frontend, $offsetX="-40", $offsetY="-20")
@@ -33,6 +37,8 @@ UpdateRelStyle(frontend, backend, $offsetY="-35")
 UpdateRelStyle(backend, database, $offsetY="35")
 UpdateRelStyle(backend, google_maps, $offsetY="-30")
 UpdateRelStyle(backend, cloudamqp, $offsetY="-30")
+UpdateRelStyle(orchestrator, cloudamqp, $offsetY="-30")
+UpdateRelStyle(orchestrator, orchestration_database, $offsetY="35")
 
 
 UpdateElementStyle(frontend, $bgColor="#ef846c", $fontColor="white")
@@ -40,6 +46,8 @@ UpdateElementStyle(backend, $bgColor="#438dd5", $fontColor="white")
 UpdateElementStyle(database, $bgColor="#4ade80", $fontColor="black")
 UpdateElementStyle(google_maps, $bgColor="#f0ad4e", $fontColor="black")
 UpdateElementStyle(cloudamqp, $bgColor="#f0ad4e", $fontColor="black")
+UpdateElementStyle(orchestrator, $bgColor="#8e7cc3", $fontColor="white")
+UpdateElementStyle(orchestration_database, $bgColor="#4ade80", $fontColor="black")
 
 
 UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")

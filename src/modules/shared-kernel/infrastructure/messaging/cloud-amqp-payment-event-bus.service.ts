@@ -7,21 +7,32 @@ import {
 import amqp, {
   type Channel,
   type ChannelModel,
-  type ConsumeMessage,
   type ConfirmChannel,
+  type ConsumeMessage,
 } from 'amqplib';
 import type {
-  PaymentConfirmedHandler,
   PaymentConfirmedMessage,
-  PaymentEventConsumer,
   PaymentEventPublisher,
 } from '../../application/ports/payment-event-bus.port';
+import type {
+  SagaMessage,
+  SagaMessageBus,
+  SagaMessageHandler,
+  SagaMessageName,
+} from '../../application/ports/saga-message-bus.port';
+
+interface Registration {
+  queue: string;
+  routingKey: SagaMessageName;
+  handler: SagaMessageHandler;
+  started: boolean;
+}
 
 @Injectable()
 export class CloudAmqpPaymentEventBus
   implements
     PaymentEventPublisher,
-    PaymentEventConsumer,
+    SagaMessageBus,
     OnModuleInit,
     OnModuleDestroy
 {
@@ -29,28 +40,23 @@ export class CloudAmqpPaymentEventBus
   private readonly url =
     process.env.CLOUDAMQP_URL?.trim() || process.env.RABBITMQ_URL?.trim() || '';
   private readonly exchange =
-    process.env.RABBITMQ_EXCHANGE?.trim() || 'petcare.events';
+    process.env.RABBITMQ_EXCHANGE?.trim() ||
+    process.env.AMQP_EXCHANGE?.trim() ||
+    'petcare.events';
   private readonly deadLetterExchange =
     process.env.RABBITMQ_DEAD_LETTER_EXCHANGE?.trim() || 'petcare.events.dead';
-  private readonly queue =
-    process.env.RABBITMQ_PAYMENT_CONFIRMED_QUEUE?.trim() ||
-    'petcare.booking.payment-confirmed';
-  private readonly deadLetterQueue =
-    process.env.RABBITMQ_PAYMENT_CONFIRMED_DLQ?.trim() ||
-    'petcare.booking.payment-confirmed.dlq';
-  private readonly routingKey = 'payment.confirmed';
+  private readonly registrations = new Map<string, Registration>();
 
   private connection?: ChannelModel;
   private channel?: ConfirmChannel;
   private connecting?: Promise<void>;
-  private handler?: PaymentConfirmedHandler;
-  private consumerStarted = false;
+  private reconnectTimer?: NodeJS.Timeout;
   private shuttingDown = false;
 
   async onModuleInit() {
     if (!this.url) {
       this.logger.warn(
-        'RabbitMQ no configurado; se usará entrega local solo para desarrollo',
+        'RabbitMQ no configurado; el transporte Saga no estará disponible',
       );
       return;
     }
@@ -58,60 +64,99 @@ export class CloudAmqpPaymentEventBus
       await this.connect();
     } catch {
       this.logger.warn(
-        'La aplicación inició sin RabbitMQ; los pagos quedarán pendientes de confirmación hasta recuperar la conexión',
+        'La aplicación inició sin RabbitMQ; las transacciones Saga quedarán pendientes',
       );
     }
-  }
-
-  registerPaymentConfirmedHandler(handler: PaymentConfirmedHandler) {
-    this.handler = handler;
-    void this.startConsumerIfReady();
+    this.reconnectTimer = setInterval(() => {
+      if (!this.connection && !this.shuttingDown) {
+        void this.connect().catch(() => undefined);
+      }
+    }, 5000);
   }
 
   async publishPaymentConfirmed(message: PaymentConfirmedMessage) {
-    if (!this.url) {
-      this.publishLocally(message);
-      return;
-    }
-    await this.connect();
-    if (!this.channel) {
-      throw new Error('RabbitMQ no está disponible para publicar el pago');
-    }
-    const published = this.channel.publish(
-      this.exchange,
-      this.routingKey,
-      Buffer.from(JSON.stringify(message)),
-      {
-        contentType: 'application/json',
-        deliveryMode: 2,
-        messageId: message.eventId,
-        type: message.eventName,
-      },
-    );
-    if (!published) {
-      await waitForDrain(this.channel);
-    }
-    await this.channel.waitForConfirms();
-    this.logger.log(
-      `Publicado payment.confirmed eventId=${message.eventId} paymentId=${message.paymentId} bookingId=${message.bookingId}`,
-    );
+    await this.publishJson(message.eventId, message.eventName, message);
+  }
+
+  async publish(message: SagaMessage) {
+    await this.publishJson(message.eventId, message.eventName, message);
+  }
+
+  register(
+    queue: string,
+    routingKey: SagaMessageName,
+    handler: SagaMessageHandler,
+  ) {
+    const registration: Registration = {
+      queue,
+      routingKey,
+      handler,
+      started: false,
+    };
+    this.registrations.set(queue, registration);
+    void this.startRegistration(registration).catch((error) => {
+      this.logger.error(
+        `No se pudo iniciar consumidor queue=${queue}: ${errorMessage(error)}`,
+      );
+    });
   }
 
   async onModuleDestroy() {
     this.shuttingDown = true;
+    if (this.reconnectTimer) {
+      clearInterval(this.reconnectTimer);
+    }
     try {
       await this.channel?.close();
     } catch {
       // The broker may already have closed the channel.
     }
     try {
-      // amqplib exposes different close signatures across its Node typings.
       await this.connection?.close();
     } catch {
       // The broker may already have closed the connection.
     }
     this.channel = undefined;
     this.connection = undefined;
+  }
+
+  private async publishJson(
+    eventId: string,
+    eventName: string,
+    payload: object,
+  ) {
+    if (!this.url) {
+      this.publishLocally({
+        eventId,
+        eventName: eventName as SagaMessageName,
+        occurredAt:
+          'occurredAt' in payload && typeof payload.occurredAt === 'string'
+            ? payload.occurredAt
+            : new Date().toISOString(),
+        ...payload,
+      });
+      return;
+    }
+    await this.connect();
+    if (!this.channel) {
+      throw new Error('RabbitMQ no está disponible para publicar el mensaje');
+    }
+    const published = this.channel.publish(
+      this.exchange,
+      eventName,
+      Buffer.from(JSON.stringify(payload)),
+      {
+        contentType: 'application/json',
+        deliveryMode: 2,
+        messageId: eventId,
+        type: eventName,
+      },
+    );
+    if (!published) {
+      await waitForDrain(this.channel);
+    }
+    await this.channel.waitForConfirms();
+    this.logger.log(`Publicado ${eventName} eventId=${eventId}`);
   }
 
   private async connect() {
@@ -137,18 +182,20 @@ export class CloudAmqpPaymentEventBus
       connection.on('close', () => {
         this.channel = undefined;
         this.connection = undefined;
-        this.consumerStarted = false;
+        for (const registration of this.registrations.values()) {
+          registration.started = false;
+        }
         if (!this.shuttingDown) {
           this.logger.warn('RabbitMQ connection closed');
         }
       });
       const channel = await connection.createConfirmChannel();
       this.channel = channel;
-      await this.configureTopology(channel);
-      await this.startConsumerIfReady();
-      this.logger.log(
-        `RabbitMQ conectado; exchange=${this.exchange} queue=${this.queue}`,
-      );
+      await this.configureInfrastructure(channel);
+      for (const registration of this.registrations.values()) {
+        await this.startRegistration(registration);
+      }
+      this.logger.log(`RabbitMQ conectado; exchange=${this.exchange}`);
     } catch (error) {
       this.channel = undefined;
       this.connection = undefined;
@@ -159,95 +206,96 @@ export class CloudAmqpPaymentEventBus
     }
   }
 
-  private async configureTopology(channel: Channel) {
+  private async configureInfrastructure(channel: Channel) {
     await channel.assertExchange(this.exchange, 'topic', { durable: true });
     await channel.assertExchange(this.deadLetterExchange, 'topic', {
       durable: true,
     });
-    await channel.assertQueue(this.deadLetterQueue, { durable: true });
-    await channel.bindQueue(
-      this.deadLetterQueue,
-      this.deadLetterExchange,
-      this.routingKey,
-    );
-    await channel.assertQueue(this.queue, {
-      durable: true,
-      arguments: {
-        'x-dead-letter-exchange': this.deadLetterExchange,
-        'x-dead-letter-routing-key': this.routingKey,
-      },
-    });
-    await channel.bindQueue(this.queue, this.exchange, this.routingKey);
   }
 
-  private async startConsumerIfReady() {
-    if (!this.channel || !this.handler || this.consumerStarted) {
+  private async startRegistration(registration: Registration) {
+    if (!this.channel || registration.started) {
       return;
     }
     const channel = this.channel;
-    this.consumerStarted = true;
+    const deadLetterQueue = `${registration.queue}.dlq`;
+    await channel.assertQueue(deadLetterQueue, { durable: true });
+    await channel.bindQueue(
+      deadLetterQueue,
+      this.deadLetterExchange,
+      registration.routingKey,
+    );
+    await channel.assertQueue(registration.queue, {
+      durable: true,
+      arguments: {
+        'x-dead-letter-exchange': this.deadLetterExchange,
+        'x-dead-letter-routing-key': registration.routingKey,
+      },
+    });
+    await channel.bindQueue(
+      registration.queue,
+      this.exchange,
+      registration.routingKey,
+    );
     await channel.consume(
-      this.queue,
-      (message) => void this.handleMessage(channel, message),
+      registration.queue,
+      (message) => void this.handleMessage(channel, registration, message),
       { noAck: false },
     );
-    this.logger.log(`RabbitMQ consumidor activo; queue=${this.queue}`);
+    registration.started = true;
+    this.logger.log(
+      `RabbitMQ consumidor activo queue=${registration.queue} routingKey=${registration.routingKey}`,
+    );
   }
 
   private async handleMessage(
     channel: Channel,
+    registration: Registration,
     message: ConsumeMessage | null,
   ) {
-    if (!message || !this.handler) {
+    if (!message) {
       return;
     }
     try {
       const parsed = JSON.parse(
         message.content.toString('utf8'),
-      ) as PaymentConfirmedMessage;
+      ) as SagaMessage;
       validateMessage(parsed);
-      await this.handler(parsed);
+      await registration.handler(parsed);
       channel.ack(message);
     } catch (error) {
       this.logger.error(
-        `Mensaje payment.confirmed rechazado: ${errorMessage(error)}`,
+        `Mensaje ${registration.routingKey} rechazado: ${errorMessage(error)}`,
       );
       channel.nack(message, false, false);
     }
   }
 
-  private publishLocally(message: PaymentConfirmedMessage) {
-    if (!this.handler) {
-      this.logger.error(
-        'No existe consumidor local para payment.confirmed; mensaje descartado',
+  private publishLocally(message: SagaMessage) {
+    const registrations = [...this.registrations.values()].filter(
+      (registration) => registration.routingKey === message.eventName,
+    );
+    if (registrations.length === 0) {
+      this.logger.warn(
+        `Mensaje local sin consumidor eventName=${message.eventName}`,
       );
       return;
     }
-    this.logger.warn(
-      `Entrega local de payment.confirmed eventId=${message.eventId} paymentId=${message.paymentId} bookingId=${message.bookingId}`,
-    );
-    setImmediate(() => {
-      void this.handler?.(message).catch((error) => {
-        this.logger.error(
-          `Error procesando payment.confirmed local: ${errorMessage(error)}`,
-        );
+    for (const registration of registrations) {
+      setImmediate(() => {
+        void registration.handler(message).catch((error) => {
+          this.logger.error(
+            `Error procesando mensaje local ${message.eventName}: ${errorMessage(error)}`,
+          );
+        });
       });
-    });
+    }
   }
 }
 
-function validateMessage(message: PaymentConfirmedMessage) {
-  if (
-    message.eventName !== 'payment.confirmed' ||
-    !message.eventId ||
-    !message.paymentId ||
-    !message.bookingId ||
-    !message.userId ||
-    !message.providerId ||
-    message.amount <= 0 ||
-    message.currency !== 'COP'
-  ) {
-    throw new Error('Mensaje payment.confirmed inválido');
+function validateMessage(message: SagaMessage) {
+  if (!message.eventId || !message.eventName || !message.occurredAt) {
+    throw new Error('Mensaje Saga inválido');
   }
 }
 

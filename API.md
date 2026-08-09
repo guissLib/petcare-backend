@@ -66,9 +66,9 @@ La mayoría de cuerpos usan JSON; la carga de carnets usa
   `at-location` conserva la confirmación inmediata.
 - `POST /bookings/:bookingId/payments/mock` procesa el checkout de tarjeta
   simulado. Cuando el pago queda `paid`, Payment publica `payment.confirmed`
-  en RabbitMQ y devuelve la reserva como `pending-confirmation`. Booking
-  consume el mensaje, confirma la reserva y recién entonces dispara la
-  notificación al proveedor.
+  en RabbitMQ y devuelve la reserva como `pending-confirmation`.
+  `orchestration-service` inicia la Saga, solicita la confirmación a Booking y
+  coordina la notificación solo después de la confirmación.
 - `GET /bookings`, `GET /bookings/:bookingId`
 - `PATCH /bookings/:bookingId/status` con `rejected`, `in-progress`,
   `completed` o `cancelled`; una reserva online pendiente no puede confirmarse
@@ -105,20 +105,22 @@ coordenadas dentro de Bolivia, disponibilidad, capacidad y promociones
 nacionales/locales. Las reservas online en `pending` no ocupan capacidad ni
 son visibles para el proveedor. Tras el pago pasan a
 `pending-confirmation`, reservan la capacidad del horario, pero siguen ocultas
-al proveedor hasta que Booking consuma el evento `payment.confirmed` desde
-RabbitMQ y las pase a `confirmed`. El evento de confirmación local es
-idempotente y crea las notificaciones del cliente y del operador del
-proveedor. Además, MySQL impide por trigger que una reserva online llegue a
+al proveedor hasta que la Saga solicite a Booking consumir el evento
+`payment.confirmed` y la pase a `confirmed`. El evento de confirmación es
+idempotente y la notificación se ejecuta como transacción reintentable.
+Además, MySQL impide por trigger que una reserva online llegue a
 `pending-confirmation`, `confirmed`, `in-progress` o `completed` si su pago no
-está `paid`. La dirección de un domicilio se oculta al proveedor hasta que la
-reserva esté confirmada.
+está `paid`. Si la transacción pivote de Booking falla, la Saga puede dejar el
+pago en `refunded` y la reserva en `cancelled`. La dirección de un domicilio se
+oculta al proveedor hasta que la reserva esté confirmada.
 
 ## Integraciones simuladas
 
 `payments/mock` y el pago de una reserva generan referencias `MOCK-*`; no
-contactan una pasarela. RabbitMQ/CloudAMQP transporta el evento
-`payment.confirmed` con una cola durable de Booking y una cola de mensajes
-fallidos. `maps/geocode` consulta Google Maps mediante la clave
+contactan una pasarela. RabbitMQ/CloudAMQP transporta los eventos y comandos
+de la Saga con colas durables y colas de mensajes fallidos. Si la confirmación
+de Booking falla, la Saga solicita el reembolso del pago y la cancelación de la
+reserva. `maps/geocode` consulta Google Maps mediante la clave
 de servidor y limita el resultado a Bolivia. Las notificaciones de
 confirmación, rechazo y finalización se guardan localmente y se entregan con el
 canal `mock-push`.

@@ -45,7 +45,7 @@ function toDomain(record: PaymentOrmEntity) {
     id: record.id,
     userId: record.userId ?? undefined,
     method: record.method as 'online' | 'at-location',
-    status: record.status as 'paid' | 'pending' | 'failed',
+    status: record.status as 'paid' | 'pending' | 'failed' | 'refunded',
     amount: record.amount,
     currency: record.currency,
     provider: record.provider as 'mock',

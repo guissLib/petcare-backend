@@ -79,6 +79,17 @@ export class Payment {
     this.props.failureReason = reason;
   }
 
+  markRefunded() {
+    if (this.props.status === 'refunded') {
+      return;
+    }
+    if (this.props.status !== 'paid') {
+      throw new BusinessRuleError('Solo se puede compensar un pago aprobado');
+    }
+    this.props.status = 'refunded';
+    this.props.failureReason = undefined;
+  }
+
   setReference(reference: string) {
     if (!reference.trim()) {
       throw new BusinessRuleError('La referencia del pago es requerida');

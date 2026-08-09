@@ -80,6 +80,9 @@ export class PaymentsApplicationService {
     if (payment.status === 'paid') {
       return payment;
     }
+    if (payment.status === 'refunded') {
+      throw new BusinessRuleError('Un pago compensado no puede procesarse');
+    }
     if (payment.method === 'online' && !card) {
       throw new BusinessRuleError(
         'Los pagos online requieren los datos de la tarjeta',
@@ -151,6 +154,13 @@ export class PaymentsApplicationService {
     if (!payment) {
       throw new EntityNotFoundError('Pago no encontrado');
     }
+    return payment;
+  }
+
+  async refund(paymentId: string) {
+    const payment = await this.findById(paymentId);
+    payment.markRefunded();
+    await this.payments.save(payment);
     return payment;
   }
 }
