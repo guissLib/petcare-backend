@@ -7,7 +7,6 @@ import {
   OneToMany,
   PrimaryColumn,
 } from 'typeorm';
-import { BookingOrmEntity } from '../../../../booking/infrastructure/persistence/entities/booking.orm-entity';
 import { PromotionServiceTypeOrmEntity } from './promotion-service-type.orm-entity';
 import { ProviderOrmEntity } from '../../../../provider/infrastructure/persistence/entities/provider.orm-entity';
 
@@ -61,7 +60,4 @@ export class PromotionOrmEntity {
     (serviceType) => serviceType.promotion,
   )
   serviceTypes!: PromotionServiceTypeOrmEntity[];
-
-  @OneToMany(() => BookingOrmEntity, (booking) => booking.promotion)
-  bookings!: BookingOrmEntity[];
 }

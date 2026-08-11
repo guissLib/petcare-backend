@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { EntityNotFoundError } from '../../shared-kernel/domain/shared/errors/domain-error';
-import { BOOKING_REPOSITORY } from '../../booking/domain/repositories/booking.repository';
-import type { BookingRepository } from '../../booking/domain/repositories/booking.repository';
-import { ProviderAvailabilityService } from '../domain/services/provider-availability.service';
 import { PROVIDER_REPOSITORY } from '../domain/repositories/provider.repository';
 import type { ProviderRepository } from '../domain/repositories/provider.repository';
+import {
+  BOOKING_AVAILABILITY_CLIENT,
+  type BookingAvailabilityClient,
+} from '../../shared-kernel/infrastructure/integrations/booking-availability.client';
 import type { ServiceType } from '../../shared-kernel/domain/shared/types';
 import {
   optionalText,
@@ -15,13 +16,11 @@ import {
 
 @Injectable()
 export class ProvidersApplicationService {
-  private readonly availabilityService = new ProviderAvailabilityService();
-
   constructor(
     @Inject(PROVIDER_REPOSITORY)
     private readonly providers: ProviderRepository,
-    @Inject(BOOKING_REPOSITORY)
-    private readonly bookings: BookingRepository,
+    @Inject(BOOKING_AVAILABILITY_CLIENT)
+    private readonly bookingService: BookingAvailabilityClient,
   ) {}
 
   async list(query: Input) {
@@ -49,11 +48,10 @@ export class ProvidersApplicationService {
   async availability(providerId: string, query: Input) {
     required(query, ['date']);
     const provider = await this.getById(providerId);
-    const bookings = await this.bookings.findAll();
-    return this.availabilityService.calculate(
-      provider,
+    return this.bookingService.availability(
+      providerId,
       text(query, 'date'),
-      bookings,
+      provider.capacity,
     );
   }
 }

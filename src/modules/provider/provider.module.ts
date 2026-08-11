@@ -1,6 +1,6 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BookingModule } from '../booking/booking.module';
+import { SharedKernelModule } from '../shared-kernel/shared-kernel.module';
 import { PROVIDER_REPOSITORY } from './domain/repositories/provider.repository';
 import { ProvidersApplicationService } from './application/providers.application.service';
 import { ProviderOrmEntity } from './infrastructure/persistence/entities/provider.orm-entity';
@@ -16,7 +16,7 @@ import { ProvidersController } from './presentation/http/controllers/providers.c
       ProviderServiceOrmEntity,
       ProviderScheduleOrmEntity,
     ]),
-    forwardRef(() => BookingModule),
+    SharedKernelModule,
   ],
   controllers: [ProvidersController],
   providers: [

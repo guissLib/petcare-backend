@@ -44,10 +44,16 @@ export class PaymentsApplicationService {
     return this.charge(numberValue(input, 'amount'), method, undefined, card);
   }
 
-  createPending(userId: string, amount: number, method: PaymentMethod) {
+  createPending(
+    userId: string,
+    amount: number,
+    method: PaymentMethod,
+    bookingId?: string,
+  ) {
     return Payment.create({
       id: createId('payment'),
       userId,
+      bookingId,
       method,
       amount,
       status: 'pending',
@@ -55,6 +61,33 @@ export class PaymentsApplicationService {
       reference: `PENDING-${createId('payment').slice(-12).toUpperCase()}`,
       createdAt: now(),
     });
+  }
+
+  async createIntent(
+    userId: string,
+    amount: number,
+    method: PaymentMethod,
+    bookingId: string,
+  ) {
+    const payment =
+      method === 'at-location'
+        ? Payment.create({
+            id: createId('payment'),
+            userId,
+            bookingId,
+            method,
+            amount,
+            status: 'paid',
+            provider: 'mock',
+            reference: `AT_LOCATION-${createId('payment')
+              .slice(-12)
+              .toUpperCase()}`,
+            createdAt: now(),
+            paidAt: now(),
+          })
+        : this.createPending(userId, amount, method, bookingId);
+    await this.payments.save(payment);
+    return payment;
   }
 
   async charge(
@@ -147,6 +180,91 @@ export class PaymentsApplicationService {
     const result = await this.process(payment, card);
     await this.payments.save(result);
     return result;
+  }
+
+  async chargeForBooking(input: {
+    bookingId: string;
+    userId: string;
+    providerId: string;
+    paymentId: string;
+    amount: number;
+    card: MockPaymentCard;
+  }) {
+    const payment = await this.findById(input.paymentId);
+    if (
+      payment.userId !== input.userId ||
+      payment.bookingId !== input.bookingId
+    ) {
+      throw new BusinessRuleError('El pago no pertenece al usuario');
+    }
+    if (payment.method !== 'online' || payment.amount !== input.amount) {
+      throw new BusinessRuleError(
+        'El contexto del pago no coincide con la reserva',
+      );
+    }
+    const result = await this.process(payment, input.card);
+    await this.payments.save(result);
+    return result;
+  }
+
+  async publishBookingConfirmation(input: {
+    bookingId: string;
+    userId: string;
+    providerId: string;
+    paymentId: string;
+    amount: number;
+  }) {
+    const payment = await this.findById(input.paymentId);
+    if (
+      payment.userId !== input.userId ||
+      payment.bookingId !== input.bookingId ||
+      payment.amount !== input.amount ||
+      payment.method !== 'online' ||
+      payment.status !== 'paid'
+    ) {
+      throw new BusinessRuleError(
+        'El pago no está listo para confirmar la reserva',
+      );
+    }
+    await this.publishPaymentConfirmed(payment, {
+      id: input.bookingId,
+      userId: input.userId,
+      providerId: input.providerId,
+    });
+  }
+
+  async confirmAtLocation(input: {
+    bookingId: string;
+    userId: string;
+    providerId: string;
+    paymentId: string;
+    amount: number;
+  }) {
+    const payment = await this.findById(input.paymentId);
+    if (
+      payment.userId !== input.userId ||
+      payment.bookingId !== input.bookingId ||
+      payment.method !== 'at-location' ||
+      payment.amount !== input.amount ||
+      payment.status !== 'paid'
+    ) {
+      throw new BusinessRuleError(
+        'El contexto del pago at-location no coincide con la reserva',
+      );
+    }
+    await this.publishPaymentConfirmed(payment, {
+      id: input.bookingId,
+      userId: input.userId,
+      providerId: input.providerId,
+    });
+  }
+
+  async cancelPending(paymentId: string) {
+    const payment = await this.findById(paymentId);
+    if (payment.status === 'pending') {
+      payment.markFailed('La reserva no pudo persistirse');
+      await this.payments.save(payment);
+    }
   }
 
   async findById(id: string) {

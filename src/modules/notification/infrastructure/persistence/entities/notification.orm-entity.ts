@@ -6,7 +6,6 @@ import {
   ManyToOne,
   PrimaryColumn,
 } from 'typeorm';
-import { BookingOrmEntity } from '../../../../booking/infrastructure/persistence/entities/booking.orm-entity';
 import { UserOrmEntity } from '../../../../user/infrastructure/persistence/entities/user.orm-entity';
 
 @Entity({ name: 'notifications' })
@@ -26,13 +25,6 @@ export class NotificationOrmEntity {
 
   @Column({ name: 'booking_id', type: 'varchar', length: 64, nullable: true })
   bookingId!: string | null;
-
-  @ManyToOne(() => BookingOrmEntity, (booking) => booking.notifications, {
-    nullable: true,
-    onDelete: 'SET NULL',
-  })
-  @JoinColumn({ name: 'booking_id', referencedColumnName: 'id' })
-  booking!: BookingOrmEntity | null;
 
   @Column({ type: 'varchar', length: 20 })
   type!: string;

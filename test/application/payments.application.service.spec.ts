@@ -2,18 +2,28 @@ import { PaymentsApplicationService } from '../../src/modules/payment/applicatio
 import { Payment } from '../../src/modules/payment/domain/entities/payment.entity';
 import type { PaymentGateway } from '../../src/modules/shared-kernel/application/ports/integration.ports';
 import type { PaymentRepository } from '../../src/modules/payment/domain/repositories/payment.repository';
+import type { PaymentEventPublisher } from '../../src/modules/shared-kernel/application/ports/payment-event-bus.port';
 
 describe('PaymentsApplicationService', () => {
-  function createService(gateway: PaymentGateway) {
+  function createService(
+    gateway: PaymentGateway,
+    eventPublisher?: PaymentEventPublisher,
+  ) {
     const saveMock = jest.fn();
+    const findByIdMock = jest.fn();
     const payments = {
       save: saveMock,
-      findById: jest.fn(),
+      findById: findByIdMock,
     } as unknown as PaymentRepository;
     return {
-      service: new PaymentsApplicationService(payments, gateway),
+      service: new PaymentsApplicationService(
+        payments,
+        gateway,
+        eventPublisher,
+      ),
       payments,
       saveMock,
+      findByIdMock,
     };
   }
 
@@ -67,5 +77,51 @@ describe('PaymentsApplicationService', () => {
     expect(result.status).toBe('failed');
     expect(result.toPrimitives().failureReason).toBe('Tarjeta rechazada');
     expect(saveMock).toHaveBeenCalledWith(payment);
+  });
+
+  it('publishes confirmation only for the payment booking association', async () => {
+    const publishMock = jest.fn();
+    const { service, findByIdMock } = createService(
+      { charge: jest.fn() },
+      { publishPaymentConfirmed: publishMock },
+    );
+    const payment = Payment.create({
+      id: 'payment_1',
+      userId: 'user_1',
+      bookingId: 'booking_1',
+      method: 'online',
+      amount: 45000,
+      status: 'paid',
+      provider: 'mock',
+      reference: 'MOCK-PAID',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      paidAt: '2026-08-01T00:01:00.000Z',
+    });
+    findByIdMock.mockResolvedValue(payment);
+
+    await service.publishBookingConfirmation({
+      bookingId: 'booking_1',
+      userId: 'user_1',
+      providerId: 'provider_1',
+      paymentId: 'payment_1',
+      amount: 45000,
+    });
+
+    expect(publishMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bookingId: 'booking_1',
+        paymentId: 'payment_1',
+        amount: 45000,
+      }),
+    );
+    await expect(
+      service.publishBookingConfirmation({
+        bookingId: 'booking_other',
+        userId: 'user_1',
+        providerId: 'provider_1',
+        paymentId: 'payment_1',
+        amount: 45000,
+      }),
+    ).rejects.toThrow('pago no está listo');
   });
 });

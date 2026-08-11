@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BookingModule } from './modules/booking/booking.module';
+import { BookingContextModule } from './modules/booking-context/booking-context.module';
 import { MapModule } from './modules/map/map.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { PaymentModule } from './modules/payment/payment.module';
@@ -25,7 +25,7 @@ import { UserModule } from './modules/user/user.module';
     ProviderModule,
     PromotionModule,
     PaymentModule,
-    BookingModule,
+    BookingContextModule,
     NotificationModule,
     MapModule,
     SystemModule,

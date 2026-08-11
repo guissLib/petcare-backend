@@ -1,11 +1,12 @@
 # Arquitectura del backend
 
-PetCare implementa un monolito modular. El límite principal de cambio es el
-módulo de negocio y no una capa horizontal global:
+PetCare implementa un monolito modular para los bounded contexts de identidad,
+mascotas, proveedores, promociones, mapas, notificaciones y Payment. Booking
+se despliega como un microservicio con una base MySQL propia:
 
 ```text
 src/modules/
-├── booking/
+├── booking-context/
 ├── payment/
 ├── user/
 ├── pet/
@@ -19,7 +20,8 @@ src/modules/
 
 `src/app.module.ts` realiza únicamente la composición Nest y registra la
 conexión global de TypeORM. La API, Swagger y los middlewares siguen
-inicializándose desde `src/main.ts`.
+inicializándose desde `src/main.ts`. El frontend consume Booking directamente;
+no existe un gateway público de reservas en este backend.
 
 ## Capas dentro de cada módulo
 
@@ -46,8 +48,9 @@ interfaces; la infraestructura implementa esas interfaces.
 
 ## Módulos del diagrama
 
-- `booking`: agregado de reservas, políticas, persistencia y API de reservas.
-- `payment`: agregado de pagos y gateway de cobro.
+- `booking-context`: contrato HTTP interno que compone el contexto necesario
+  para cotizar y validar una reserva.
+- `payment`: agregado de pagos, intenciones y contratos internos de checkout.
 - `user`: agregado de usuarios, roles, registro, login, JWT y hash scrypt.
 - `pet`: agregado de mascotas y registros de vacunación.
 - `provider`: agregado de proveedores, servicios, horarios y disponibilidad.
@@ -66,15 +69,18 @@ adicionales del diagrama.
 Los módulos Nest exponen únicamente los contratos o servicios que otros
 módulos necesitan. Por ejemplo:
 
-- `booking` consume los repositorios de usuario, mascota, proveedor,
-  promoción y notificación, y el servicio de pagos.
-- `provider` consume el contrato de reservas para calcular disponibilidad.
+- `booking-service` consume el contrato interno de contexto y Payment de este
+  backend; el frontend le envía directamente quote, creación, consulta,
+  estados y checkout.
+- `provider` consume el endpoint interno de disponibilidad de
+  `booking-service`.
 - `pet` y `notification` consumen el contrato de usuarios.
 - `user` consume el contrato de proveedores para crear el perfil de proveedor y
   enriquecer el JWT.
 
-Esta composición mantiene el monolito desplegable como una sola aplicación,
-pero permite extraer un módulo en el futuro sin mover sus reglas de negocio.
+Esta composición mantiene el backend monolítico desplegable como una sola
+aplicación y deja Booking aislado como microservicio, sin FK hacia otros
+bounded contexts.
 Los ciclos de composición estrictamente necesarios para disponibilidad y
 registro se expresan con `forwardRef`; no se trasladan al dominio.
 

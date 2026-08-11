@@ -7,15 +7,17 @@ title PetCare - Componentes y Orquestación Saga (Diagrama C4)
 Person(owner, "Dueño de mascota", "Consulta servicios y agenda reservas")
 Person(providerUser, "Proveedor", "Gestiona servicios y reservas")
 
+
 System_Boundary(petcare, "PetCare System") {
 
     Container(web, "PetCare Web (Frontend)", "Next.js", "Reservas, checkout y gestión")
 
+
     Container_Boundary(backend, "PetCare Backend (Monolito Modular)") {
 
-        Component(booking, "Booking Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de reservas y consumidor de pagos")
+        Component(bookingContext, "Booking Context Contract", "Internal HTTP adapter", "Entrega a Booking los datos validados de usuario, mascota, proveedor y promociones")
 
-        Component(payment, "Payment Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de pagos y publicación de eventos")
+        Component(payment, "Payment Module", "Internal Controllers · Use Cases\nDomain · Infrastructure", "Intenciones, checkout mock y publicación de eventos")
 
         Component(user, "User Module", "Controllers · Use Cases\nDomain · Infrastructure", "Usuarios y autenticación")
 
@@ -28,17 +30,29 @@ System_Boundary(petcare, "PetCare System") {
         Component(promotion, "Promotion Module", "Controllers · Use Cases\nDomain · Infrastructure", "Gestión de promociones")
 
         Component(shared, "Shared Kernel", "Shared Domain", "Value Objects, Interfaces\nDomain Events, Exceptions")
-
-        Component(eventBus, "Local Event Bus", "Application Port · Adapter", "Entrega eventos dentro del monolito")
     }
 
-    ContainerDb(database, "MySQL", "Aiven", "Persistencia")
+
+    ContainerDb(database, "PetCare MySQL", "MySQL / Aiven", "Persistencia principal de PetCare excepto Booking")
+
+    Container_Boundary(bookingService, "Booking Service (Microservicio)") {
+        Component(bookingApi, "Booking HTTP API", "Controllers · DTOs · Auth", "Cotización, creación, consulta y estados")
+        Component(bookingDomain, "Booking Application/Domain", "Use Cases · Aggregate", "Reglas de ciclo de vida y confirmación idempotente")
+        Component(bookingPersistence, "Booking Persistence", "TypeORM · MySQL", "Repositorio de la base privada de Booking")
+    }
+
+    ContainerDb(bookingDb, "Booking MySQL", "MySQL", "Persistencia exclusiva del agregado Booking")
+
+
+    Container(orchestrator, "Orchestration Service", "NestJS / TypeScript", "Orquestador Saga de pagos, reservas y notificaciones")
+
+    ContainerDb(orchestratorDb, "Orchestration MySQL", "MySQL", "Persistencia del estado de las Sagas y correlación de procesos")
 }
+
 
 System_Ext(maps, "Google Maps Platform", "Geolocalización")
 
 System_Ext(rabbitmq, "CloudAMQP - RabbitMQ", "RabbitMQ administrado por CloudAMQP para mensajería asíncrona")
-System_Ext(orchestrator, "Orchestration Service", "Orquestador Saga de pagos, reservas y notificaciones")
 
 
 ' =========================================================
@@ -50,67 +64,72 @@ Rel(providerUser, web, "Usa", "HTTPS")
 
 
 ' =========================================================
-' 2. Web a Backend
+' 2. Web a los servicios
 ' =========================================================
 
-Rel(web, backend, "Consume API", "REST")
+Rel(web, backend, "Consume usuarios, mascotas, proveedores, promociones y mapas", "REST/HTTPS")
+Rel(web, bookingApi, "Consume directamente quote, reservas, estados y checkout", "REST/HTTPS")
 
 
 ' =========================================================
 ' 3. Comunicación interna
 ' =========================================================
 
-Rel(web, booking, "Crea reserva y abre checkout")
+Rel(bookingApi, bookingDomain, "Ejecuta casos de uso")
 
-Rel(booking, payment, "Solicita intención y procesa checkout")
-
-Rel(booking, pet, "Consulta")
-Rel(booking, provider, "Consulta")
-Rel(booking, promotion, "Calcula cotización")
-
-
-' =========================================================
-' 4. Mensajería asíncrona mediante RabbitMQ / CloudAMQP
-' =========================================================
-
-Rel(payment, rabbitmq, "Publica payment.confirmed", "AMQP")
-Rel(rabbitmq, orchestrator, "Entrega payment.confirmed", "AMQP")
-Rel(orchestrator, rabbitmq, "Publica comandos y eventos Saga", "AMQP")
-Rel(rabbitmq, booking, "Entrega booking.confirm / cancel", "AMQP")
-Rel(rabbitmq, notification, "Entrega notification.send", "AMQP")
-Rel(rabbitmq, payment, "Entrega payment.refund", "AMQP")
+Rel(bookingDomain, bookingPersistence, "Persiste el agregado")
+Rel(bookingPersistence, bookingDb, "Lee/Escribe", "MySQL/TLS")
+Rel(bookingApi, bookingContext, "Solicita contexto de negocio", "HTTP/JSON")
+Rel(bookingApi, payment, "Solicita intención y procesamiento de pago", "HTTP/JSON")
 
 
 ' =========================================================
-' 5. Event Bus local para eventos internos
+' 4. Comunicación bidireccional mediante RabbitMQ / CloudAMQP
 ' =========================================================
 
-Rel(booking, eventBus, "Eventos internos no coordinados por Saga")
+BiRel(bookingDomain, rabbitmq, "Consume booking.confirm/cancel y publica eventos", "AMQP")
+
+BiRel(payment, rabbitmq, "Publica y consume mensajes", "AMQP")
+
+BiRel(notification, rabbitmq, "Publica y consume mensajes", "AMQP")
 
 
 ' =========================================================
-' 6. Dependencias al Shared Kernel
+' 5. Orquestación de la Saga
 ' =========================================================
 
-Rel(booking, shared, "Usa")
+BiRel(orchestrator, rabbitmq, "Publica comandos y consume eventos", "AMQP")
+
+
+' =========================================================
+' 6. Persistencia del Orchestration Service
+' =========================================================
+
+Rel(orchestrator, orchestratorDb, "Lee/Escribe estado de Saga", "MySQL")
+
+
+' =========================================================
+' 7. Dependencias al Shared Kernel
+' =========================================================
+
+Rel(bookingContext, shared, "Usa")
 Rel(payment, shared, "Usa")
 Rel(user, shared, "Usa")
 Rel(pet, shared, "Usa")
 Rel(provider, shared, "Usa")
 Rel(notification, shared, "Usa")
 Rel(promotion, shared, "Usa")
-Rel(eventBus, shared, "Usa")
 
 
 ' =========================================================
-' 7. Backend a Base de Datos
+' 8. Backend a Base de Datos
 ' =========================================================
 
-Rel(backend, database, "Lee/Escribe", "Conexión DB")
+Rel(backend, database, "Lee/Escribe datos no pertenecientes a Booking", "Conexión DB")
 
 
 ' =========================================================
-' 8. Salida al Sistema Externo
+' 9. Salida al Sistema Externo
 ' =========================================================
 
 Rel(petcare, maps, "Consume API para geolocalización", "REST")

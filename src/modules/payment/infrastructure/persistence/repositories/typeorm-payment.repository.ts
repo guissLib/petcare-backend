@@ -21,6 +21,7 @@ export class TypeOrmPaymentRepository implements PaymentRepository {
     await this.repository.save({
       id: data.id,
       userId: data.userId ?? null,
+      bookingId: data.bookingId ?? null,
       method: data.method,
       status: data.status,
       amount: data.amount,
@@ -44,6 +45,7 @@ function toDomain(record: PaymentOrmEntity) {
   return Payment.rehydrate({
     id: record.id,
     userId: record.userId ?? undefined,
+    bookingId: record.bookingId ?? undefined,
     method: record.method as 'online' | 'at-location',
     status: record.status as 'paid' | 'pending' | 'failed' | 'refunded',
     amount: record.amount,

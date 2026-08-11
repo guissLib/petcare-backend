@@ -92,6 +92,7 @@ export interface PromotionPrimitives {
 export interface PaymentPrimitives {
   id: string;
   userId?: string;
+  bookingId?: string;
   method: PaymentMethod;
   status: PaymentStatus;
   amount: number;

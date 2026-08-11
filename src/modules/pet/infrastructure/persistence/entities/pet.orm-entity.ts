@@ -7,7 +7,6 @@ import {
   OneToMany,
   PrimaryColumn,
 } from 'typeorm';
-import { BookingOrmEntity } from '../../../../booking/infrastructure/persistence/entities/booking.orm-entity';
 import { PetVaccinationOrmEntity } from './pet-vaccination.orm-entity';
 import { UserOrmEntity } from '../../../../user/infrastructure/persistence/entities/user.orm-entity';
 
@@ -54,7 +53,4 @@ export class PetOrmEntity {
 
   @OneToMany(() => PetVaccinationOrmEntity, (vaccination) => vaccination.pet)
   vaccinations!: PetVaccinationOrmEntity[];
-
-  @OneToMany(() => BookingOrmEntity, (booking) => booking.pet)
-  bookings!: BookingOrmEntity[];
 }

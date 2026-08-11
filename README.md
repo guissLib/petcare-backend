@@ -1,15 +1,16 @@
 # PetCare Home Services API
 
-Backend NestJS para reservas de servicios de mascotas. La aplicación es un
-monolito modular: cada módulo agrupa sus capas de presentación, aplicación,
-dominio e infraestructura sin cambiar los endpoints públicos.
+Backend NestJS para identidad y bounded contexts auxiliares de PetCare. La
+aplicación es un monolito modular: cada módulo agrupa sus capas de
+presentación, aplicación, dominio e infraestructura. Booking se ejecuta como
+un microservicio independiente.
 
 ## Estructura
 
 El código de negocio está en `src/modules`:
 
-- `booking`: creación, consulta y ciclo de vida de reservas.
-- `payment`: pagos y gateway de pago.
+- `booking-context`: contrato interno que entrega contexto validado a Booking.
+- `payment`: intenciones, checkout mock y eventos Payment internos.
 - `user`: usuarios, registro, autenticación JWT y hash scrypt.
 - `pet`: mascotas y vacunaciones.
 - `provider`: proveedores, servicios y disponibilidad.
@@ -76,17 +77,19 @@ scrypt.
 - `POST /pets/:petId/vaccinations`.
 - `GET /providers?city=&serviceType=`.
 - `GET /providers/:providerId/availability?date=YYYY-MM-DD`.
-- `POST /users/:userId/bookings`, `GET /bookings`,
-  `GET /bookings/:bookingId`.
-- `PATCH /bookings/:bookingId/status` y
-  `POST /bookings/:bookingId/reminder`.
 - `GET /promotions`, `POST /promotions`.
 - `POST /maps/geocode`.
 - `GET /users/:userId/notifications`.
-- `POST /payments` o `POST /payments/mock`.
+- Los endpoints `/internal/booking-context` y `/internal/payments/*` son
+  contratos servicio-a-servicio protegidos por `PETCARE_SERVICE_SECRET`.
 
-El registro (`POST /users`), login, raíz y health check son públicos. Los demás
-endpoints requieren `Authorization: Bearer <accessToken>`. Configure
+Las rutas de cotización, creación, consulta, actualización, recordatorios y
+checkout de Booking están documentadas en `booking-service/README.md` y se
+consumen directamente en `http://localhost:3011/api`.
+
+El registro (`POST /users`), login, raíz y health check son públicos. Los
+endpoints de negocio requieren `Authorization: Bearer <accessToken>` y los
+contratos internos requieren el secreto de servicio. Configure
 `AUTH_JWT_SECRET` con al menos 32 caracteres y
 `AUTH_JWT_EXPIRES_IN_SECONDS` para definir la vigencia.
 

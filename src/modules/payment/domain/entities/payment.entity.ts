@@ -11,6 +11,7 @@ import { PaymentCreatedDomainEvent } from '../events/payment-created.domain-even
 export interface NewPaymentProps {
   id: string;
   userId?: string;
+  bookingId?: string;
   method: PaymentMethod;
   amount: number;
   status: PaymentStatus;
@@ -37,6 +38,7 @@ export class Payment {
       ...input,
       amount: money.amount,
       currency: money.currency,
+      bookingId: input.bookingId?.trim() || undefined,
       reference: input.reference.trim(),
       attempts: input.attempts ?? 0,
     });
@@ -107,6 +109,10 @@ export class Payment {
 
   get userId() {
     return this.props.userId;
+  }
+
+  get bookingId() {
+    return this.props.bookingId;
   }
 
   get status() {

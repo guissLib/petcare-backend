@@ -31,7 +31,7 @@ export function createTypeOrmOptions(): DataSourceOptions {
     entities: [
       resolve(
         __dirname,
-        '../../../*/infrastructure/persistence/entities/*.orm-entity{.ts,.js}',
+        '../../../{user,pet,provider,promotion,payment,notification}/infrastructure/persistence/entities/*.orm-entity{.ts,.js}',
       ),
     ],
     migrations: [resolve(__dirname, 'migrations/*{.ts,.js}')],

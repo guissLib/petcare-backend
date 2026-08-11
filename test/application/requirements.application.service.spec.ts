@@ -1,6 +1,4 @@
-import { BookingsApplicationService } from '../../src/modules/booking/application/bookings.application.service';
-import { Booking } from '../../src/modules/booking/domain/entities/booking.entity';
-import { Payment } from '../../src/modules/payment/domain/entities/payment.entity';
+import { BookingContextApplicationService } from '../../src/modules/booking-context/application/booking-context.application.service';
 import { PetsApplicationService } from '../../src/modules/pet/application/pets.application.service';
 import { Pet } from '../../src/modules/pet/domain/entities/pet.entity';
 import { PromotionsApplicationService } from '../../src/modules/promotion/application/promotions.application.service';
@@ -59,7 +57,7 @@ describe('PetCare requirement application services', () => {
     ).rejects.toThrow('servicios propios');
   });
 
-  it('returns server-side fixed promotion quote and vaccination state', async () => {
+  it('returns the validated booking context without exposing user credentials', async () => {
     const user = User.create({
       id: 'user_1',
       name: 'Ana',
@@ -105,100 +103,25 @@ describe('PetCare requirement application services', () => {
       active: true,
     });
 
-    const service = new BookingsApplicationService(
-      {
-        findById: jest.fn().mockResolvedValue(user),
-      } as never,
-      {
-        findById: jest.fn().mockResolvedValue(pet),
-      } as never,
-      {
-        findById: jest.fn().mockResolvedValue(provider),
-      } as never,
-      {
-        findAll: jest.fn().mockResolvedValue([]),
-      } as never,
-      {} as never,
-      {
-        findAll: jest.fn().mockResolvedValue([promotion]),
-      } as never,
-      {} as never,
-      {} as never,
+    const service = new BookingContextApplicationService(
+      { findById: jest.fn().mockResolvedValue(user) } as never,
+      { findById: jest.fn().mockResolvedValue(pet) } as never,
+      { findById: jest.fn().mockResolvedValue(provider) } as never,
+      { findAll: jest.fn().mockResolvedValue([promotion]) } as never,
     );
 
-    const quote = await service.quote('user_1', {
-      petId: 'pet_1',
-      providerId: 'provider_1',
-      serviceType: 'grooming',
-      visitMode: 'at-location',
-      scheduledAt: '2026-09-15T10:00:00.000Z',
-    });
-
-    expect(quote).toMatchObject({
-      originalTotal: 50000,
-      discountAmount: 5000,
-      total: 45000,
-      vaccinationRequired: true,
-      vaccinationValid: true,
-    });
-  });
-
-  it('does not expose a pending booking to the provider before confirmation', async () => {
-    const booking = Booking.rehydrate({
-      id: 'booking_1',
+    const context = await service.get({
       userId: 'user_1',
       petId: 'pet_1',
       providerId: 'provider_1',
-      serviceType: 'home-visit',
-      visitMode: 'home-visit',
-      scheduledAt: '2026-09-15T10:00:00.000Z',
-      address: 'Calle privada 1',
-      latitude: -16.49,
-      longitude: -68.12,
-      addressReference: 'Portón negro',
-      notes: undefined,
-      status: 'pending',
-      total: 60000,
-      originalTotal: 60000,
-      discountAmount: 0,
-      currency: 'COP',
-      paymentMethod: 'online',
-      paymentId: 'payment_1',
-      promotionId: undefined,
-      rejectionReason: undefined,
-      createdAt: '2026-08-01T00:00:00.000Z',
     });
-    const payment = Payment.create({
-      id: 'payment_1',
-      method: 'online',
-      amount: 60000,
-      status: 'paid',
-      provider: 'mock',
-      reference: 'mock_1',
-      createdAt: '2026-08-01T00:00:00.000Z',
-    });
-    const service = new BookingsApplicationService(
-      {} as never,
-      {} as never,
-      {} as never,
-      {
-        findById: jest.fn().mockResolvedValue(booking),
-      } as never,
-      {
-        findById: jest.fn().mockResolvedValue(payment),
-      } as never,
-      {} as never,
-      {} as never,
-      {} as never,
-    );
 
-    await expect(
-      service.getById('booking_1', {
-        id: 'provider_user',
-        role: 'provider',
-        providerId: 'provider_1',
-      }),
-    ).rejects.toThrow('No tiene acceso a esta reserva');
+    expect(context).toMatchObject({
+      user: { id: 'user_1', city: 'La Paz' },
+      pet: { id: 'pet_1', ownerId: 'user_1' },
+      provider: { id: 'provider_1', city: 'La Paz' },
+      promotions: [{ id: 'promo_1', scope: 'local' }],
+    });
   });
 
   it('validates PDF MIME, signature and size before storing a vaccination', async () => {

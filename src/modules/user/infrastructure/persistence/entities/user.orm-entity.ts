@@ -1,5 +1,4 @@
 import { Column, Entity, Index, OneToMany, PrimaryColumn } from 'typeorm';
-import { BookingOrmEntity } from '../../../../booking/infrastructure/persistence/entities/booking.orm-entity';
 import { NotificationOrmEntity } from '../../../../notification/infrastructure/persistence/entities/notification.orm-entity';
 import { PetOrmEntity } from '../../../../pet/infrastructure/persistence/entities/pet.orm-entity';
 
@@ -32,9 +31,6 @@ export class UserOrmEntity {
 
   @OneToMany(() => PetOrmEntity, (pet) => pet.owner)
   pets!: PetOrmEntity[];
-
-  @OneToMany(() => BookingOrmEntity, (booking) => booking.user)
-  bookings!: BookingOrmEntity[];
 
   @OneToMany(() => NotificationOrmEntity, (notification) => notification.user)
   notifications!: NotificationOrmEntity[];

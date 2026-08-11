@@ -8,11 +8,11 @@ import { PaymentSagaConsumer } from './application/payment-saga.consumer';
 import { MockPaymentGateway } from './infrastructure/integrations/mock-payment.gateway';
 import { PaymentOrmEntity } from './infrastructure/persistence/entities/payment.orm-entity';
 import { TypeOrmPaymentRepository } from './infrastructure/persistence/repositories/typeorm-payment.repository';
-import { PaymentsController } from './presentation/http/controllers/payments.controller';
+import { PaymentInternalController } from './presentation/http/controllers/payment-internal.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([PaymentOrmEntity]), SharedKernelModule],
-  controllers: [PaymentsController],
+  controllers: [PaymentInternalController],
   providers: [
     TypeOrmPaymentRepository,
     {

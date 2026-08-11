@@ -1,7 +1,9 @@
 # PetCare Home Services API
 
-API REST NestJS para reservas de servicios de mascotas. Usa MySQL mediante
-TypeORM y migraciones explícitas; el dominio no depende del ORM.
+API REST NestJS para usuarios, mascotas, proveedores, promociones y contratos
+internos de Payment. Booking es un microservicio público independiente, dueño
+del agregado y de su base MySQL. Ambos servicios usan TypeORM y migraciones
+explícitas; el dominio no depende del ORM.
 
 ## Ejecución
 
@@ -15,6 +17,15 @@ La documentación interactiva Swagger queda disponible en
 `http://localhost:3005/api-docs` y el contrato OpenAPI JSON en
 `http://localhost:3005/api-docs/openapi.json`.
 
+El microservicio de reservas se ejecuta por defecto en
+`http://localhost:3011/api`; su Swagger está en
+`http://localhost:3011/api-docs`. El navegador usa
+`NEXT_PUBLIC_BOOKING_API_URL` para consumirlo directamente. Configure
+`BOOKING_SERVICE_URL` y `BOOKING_INTERNAL_SECRET` en el backend para la
+consulta interna de disponibilidad, y `PETCARE_BACKEND_URL` y
+`PETCARE_SERVICE_SECRET` en `booking-service` para sus contratos internos de
+contexto y Payment.
+
 ## MySQL
 
 1. Cree la base de datos y un usuario con permisos sobre ella.
@@ -27,8 +38,12 @@ La documentación interactiva Swagger queda disponible en
 npm run migration:run
 ```
 
-Las tablas relacionales se crean con `synchronize=false`; no se modifica el
-esquema automáticamente al iniciar la aplicación. Para cargar el administrador,
+Las tablas relacionales del backend se crean con `synchronize=false`; no se
+modifica el esquema automáticamente al iniciar la aplicación. El runtime del
+backend ya no carga ni escribe la entidad `bookings`; instalaciones históricas
+pueden conservar esa tabla por las migraciones anteriores. La tabla activa de
+reservas se crea en `booking-service` con
+`cd booking-service && npm run migration:run`. Para cargar el administrador,
 proveedores y promoción base configure las variables `ADMIN_SEED_*` y ejecute:
 
 ```bash
@@ -39,6 +54,9 @@ El seed es idempotente. La contraseña del administrador y la de todos los
 usuarios nuevos se almacenan únicamente como hash scrypt. Si existe una tabla
 `petcare_state` de una instalación anterior, la migración de compatibilidad
 aplana sus datos antes de activar los repositorios relacionales.
+La migración `1770000000009-add-payment-booking-id` conserva la asociación
+entre las intenciones de Payment y `bookingId`; debe ejecutarse junto con las
+migraciones del backend antes de levantar el flujo directo.
 
 ## Recursos
 
@@ -60,20 +78,6 @@ La mayoría de cuerpos usan JSON; la carga de carnets usa
   forma autenticada
 - `GET /providers?city=&serviceType=`
 - `GET /providers/:providerId/availability?date=YYYY-MM-DD`
-- `POST /users/:userId/bookings/quote` calcula el precio antes del pago
-- `POST /users/:userId/bookings` crea la reserva. Para `online` crea una
-  intención de pago y deja la reserva en `pending` durante 30 minutos; para
-  `at-location` conserva la confirmación inmediata.
-- `POST /bookings/:bookingId/payments/mock` procesa el checkout de tarjeta
-  simulado. Cuando el pago queda `paid`, Payment publica `payment.confirmed`
-  en RabbitMQ y devuelve la reserva como `pending-confirmation`.
-  `orchestration-service` inicia la Saga, solicita la confirmación a Booking y
-  coordina la notificación solo después de la confirmación.
-- `GET /bookings`, `GET /bookings/:bookingId`
-- `PATCH /bookings/:bookingId/status` con `rejected`, `in-progress`,
-  `completed` o `cancelled`; una reserva online pendiente no puede confirmarse
-  manualmente.
-- `POST /bookings/:bookingId/reminder`
 - `GET /promotions` consulta promociones aplicables; `POST /promotions` crea
   una promoción propia para el proveedor autenticado
 - `GET /promotions/mine`, `PATCH /promotions/:promotionId` y
@@ -82,8 +86,30 @@ La mayoría de cuerpos usan JSON; la carga de carnets usa
 local` exige `city` y solo aplica cuando coincide con la ciudad del cliente.
 - `POST /maps/geocode`, `GET /maps/config`
 - `GET /users/:userId/notifications`
-- `POST /payments` y `POST /payments/mock` se mantienen por compatibilidad;
-  para una reserva debe usarse el endpoint contextual de checkout.
+- Payment no expone rutas públicas de pago. Sus rutas bajo
+  `/internal/payments/*` requieren `x-petcare-service-secret` y solo se usan
+  desde `booking-service`.
+
+### Booking Service API
+
+El frontend consume estas rutas directamente con el JWT del usuario:
+
+- `POST /users/:userId/bookings/quote` calcula el precio en el servidor,
+  validando mascota, proveedor, disponibilidad, vacunas y promociones.
+- `POST /users/:userId/bookings` crea la reserva. Para `online` crea una
+  intención de pago y deja la reserva en `pending` durante 30 minutos; para
+  `at-location` conserva la confirmación inmediata.
+- `GET /bookings`, `GET /bookings/:bookingId`
+- `POST /bookings/:bookingId/payments/mock` procesa el checkout simulado.
+  Después de persistir el pago y el estado local, Payment publica
+  `payment.confirmed`; la reserva permanece `pending-confirmation` hasta que
+  la Saga envía `booking.confirm`.
+- `PATCH /bookings/:bookingId/status` y
+  `POST /bookings/:bookingId/reminder` gestionan el ciclo operativo autorizado.
+
+El servicio solo acepta orígenes configurados en `CORS_ORIGINS`. Nunca se
+envían al navegador `PETCARE_SERVICE_SECRET`, `BOOKING_INTERNAL_SECRET` ni
+otros secretos de infraestructura.
 
 Los datos de tarjeta del checkout mock se validan únicamente por formato y no
 se almacenan. Para probar un rechazo, use un número de tarjeta terminado en
@@ -104,15 +130,14 @@ Las reservas validan pertenencia de la mascota, modalidad a domicilio,
 coordenadas dentro de Bolivia, disponibilidad, capacidad y promociones
 nacionales/locales. Las reservas online en `pending` no ocupan capacidad ni
 son visibles para el proveedor. Tras el pago pasan a
-`pending-confirmation`, reservan la capacidad del horario, pero siguen ocultas
-al proveedor hasta que la Saga solicite a Booking consumir el evento
-`payment.confirmed` y la pase a `confirmed`. El evento de confirmación es
-idempotente y la notificación se ejecuta como transacción reintentable.
-Además, MySQL impide por trigger que una reserva online llegue a
-`pending-confirmation`, `confirmed`, `in-progress` o `completed` si su pago no
-está `paid`. Si la transacción pivote de Booking falla, la Saga puede dejar el
-pago en `refunded` y la reserva en `cancelled`. La dirección de un domicilio se
-oculta al proveedor hasta que la reserva esté confirmada.
+  `pending-confirmation`, reservan la capacidad del horario, pero siguen ocultas
+al proveedor hasta que la Saga solicite a Booking consumir el comando
+  `booking.confirm` y la pase a `confirmed`. El evento de confirmación es
+  idempotente y la notificación se ejecuta como transacción reintentable.
+  Además, la base privada de Booking aplica restricciones de estado, pago,
+  importes y ubicación. Si la transacción pivote de Booking falla, la Saga
+  puede dejar el pago en `refunded` y la reserva en `cancelled`. La dirección de
+  un domicilio se oculta al proveedor hasta que la reserva esté confirmada.
 
 ## Integraciones simuladas
 

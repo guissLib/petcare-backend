@@ -7,7 +7,6 @@ import {
   OneToMany,
   PrimaryColumn,
 } from 'typeorm';
-import { BookingOrmEntity } from '../../../../booking/infrastructure/persistence/entities/booking.orm-entity';
 import { ProviderScheduleOrmEntity } from './provider-schedule.orm-entity';
 import { ProviderServiceOrmEntity } from './provider-service.orm-entity';
 import { UserOrmEntity } from '../../../../user/infrastructure/persistence/entities/user.orm-entity';
@@ -60,7 +59,4 @@ export class ProviderOrmEntity {
 
   @OneToMany(() => ProviderScheduleOrmEntity, (schedule) => schedule.provider)
   schedules!: ProviderScheduleOrmEntity[];
-
-  @OneToMany(() => BookingOrmEntity, (booking) => booking.provider)
-  bookings!: BookingOrmEntity[];
 }

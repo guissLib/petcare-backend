@@ -1,14 +1,17 @@
-import { Column, Entity, Index, OneToOne, PrimaryColumn } from 'typeorm';
-import { BookingOrmEntity } from '../../../../booking/infrastructure/persistence/entities/booking.orm-entity';
+import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
 
 @Entity({ name: 'payments' })
 @Index('UQ_payments_reference', ['reference'], { unique: true })
+@Index('IDX_payments_booking_id', ['bookingId'])
 export class PaymentOrmEntity {
   @PrimaryColumn({ type: 'varchar', length: 64 })
   id!: string;
 
   @Column({ name: 'user_id', type: 'varchar', length: 64, nullable: true })
   userId!: string | null;
+
+  @Column({ name: 'booking_id', type: 'varchar', length: 64, nullable: true })
+  bookingId!: string | null;
 
   @Column({ type: 'varchar', length: 16 })
   method!: string;
@@ -44,7 +47,4 @@ export class PaymentOrmEntity {
 
   @Column({ type: 'int', unsigned: true, default: 0 })
   attempts!: number;
-
-  @OneToOne(() => BookingOrmEntity, (booking) => booking.payment)
-  booking!: BookingOrmEntity | null;
 }
