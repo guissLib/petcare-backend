@@ -111,9 +111,9 @@ El servicio solo acepta orígenes configurados en `CORS_ORIGINS`. Nunca se
 envían al navegador `API_GATEWAY_SECRET`, `PETCARE_SERVICE_SECRET`,
 `BOOKING_INTERNAL_SECRET` ni otros secretos de infraestructura.
 
-Los datos de tarjeta del checkout mock se validan únicamente por formato y no
-se almacenan. Para probar un rechazo, use un número de tarjeta terminado en
-`0002`. El checkout no persiste el número, el CVV ni la fecha de expiración.
+El checkout mock no valida el formato ni la vigencia de los datos de tarjeta:
+son opcionales, se descartan y no se almacenan ni publican. El flujo únicamente
+genera un token mock de un solo uso para procesar el pago simulado.
 
 ### Autenticación
 

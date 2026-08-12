@@ -95,20 +95,18 @@ describe('PaymentCommandService', () => {
     });
   });
 
-  it('persists a definitive decline and never stores the raw token', async () => {
+  it('confirms any mock token and never stores the raw token', async () => {
     const persistence = new PaymentPersistence();
     const service = new PaymentCommandService(persistence.dataSource());
     await service.process(intent());
     await service.process(capture('capture_declined', 'mock_tok_declined'));
 
     expect(persistence.payments.get('payment_1')).toMatchObject({
-      status: 'failed',
-      failureReason: 'El token mock fue rechazado',
+      status: 'paid',
     });
-    expect(persistence.tokens[0]).toMatchObject({ outcome: 'declined' });
+    expect(persistence.tokens[0]).toMatchObject({ outcome: 'confirmed' });
     expect(persistence.outbox.at(-1)?.payload).toMatchObject({
-      eventName: 'payment.capture.failed',
-      retryable: false,
+      eventName: 'payment.confirmed',
     });
     expect(persistence.outbox.at(-1)?.payload).not.toHaveProperty(
       'mockPaymentToken',

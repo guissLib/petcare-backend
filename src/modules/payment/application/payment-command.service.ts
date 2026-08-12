@@ -175,8 +175,7 @@ export class PaymentCommandService {
           );
     }
 
-    const declined = /declin(?:e|ed)?/i.test(token) || token.endsWith('0002');
-    const outcome: PaymentTokenOutcome = declined ? 'declined' : 'confirmed';
+    const outcome: PaymentTokenOutcome = 'confirmed';
     const usedAt = new Date();
     await tokens.insert({
       paymentId: context.paymentId,
@@ -186,24 +185,12 @@ export class PaymentCommandService {
     });
     payment.attempts += 1;
     payment.reference = `MOCK-${randomUUID().slice(0, 8).toUpperCase()}`;
-    if (declined) {
-      payment.status = 'failed';
-      payment.failureReason = 'El token mock fue rechazado';
-      payment.paidAt = null;
-    } else {
-      payment.status = 'paid';
-      payment.failureReason = null;
-      payment.paidAt = usedAt;
-    }
+    payment.status = 'paid';
+    payment.failureReason = null;
+    payment.paidAt = usedAt;
     await manager.getRepository(PaymentOrmEntity).save(payment);
 
-    return declined
-      ? failureResponse(
-          'payment.capture-token',
-          message,
-          'El token mock fue rechazado',
-        )
-      : response('payment.confirmed', message, context);
+    return response('payment.confirmed', message, context);
   }
 
   private async confirmAtLocation(

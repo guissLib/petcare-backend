@@ -1,11 +1,11 @@
 import type { PaymentMethod } from '../../domain/shared/types';
 
 export interface MockPaymentCard {
-  cardholderName: string;
-  cardNumber: string;
-  expiryMonth: number;
-  expiryYear: number;
-  cvv: string;
+  cardholderName?: unknown;
+  cardNumber?: unknown;
+  expiryMonth?: unknown;
+  expiryYear?: unknown;
+  cvv?: unknown;
 }
 
 export interface PaymentGatewayResult {

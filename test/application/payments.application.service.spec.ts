@@ -43,14 +43,14 @@ describe('PaymentsApplicationService', () => {
     expect(payment.toPrimitives()).not.toHaveProperty('cardNumber');
   });
 
-  it('marks a mock card ending in 0002 as failed and persists the result', async () => {
+  it('accepts arbitrary mock card values without validating or persisting them', async () => {
+    const chargeMock = jest.fn().mockResolvedValue({
+      status: 'paid',
+      provider: 'mock',
+      reference: 'MOCK-PAID',
+    });
     const { service, saveMock } = createService({
-      charge: jest.fn().mockResolvedValue({
-        status: 'failed',
-        provider: 'mock',
-        reference: 'MOCK-FAILED',
-        failureReason: 'Tarjeta rechazada',
-      }),
+      charge: chargeMock,
     });
     const payment = Payment.create({
       id: 'payment_1',
@@ -65,18 +65,19 @@ describe('PaymentsApplicationService', () => {
 
     const result = await service.pay(
       {
-        cardholderName: 'Ana Pérez',
-        cardNumber: '4242424242420002',
-        expiryMonth: 12,
-        expiryYear: 2030,
-        cvv: '123',
+        cardholderName: '',
+        cardNumber: 'not-a-card',
+        expiryMonth: 0,
+        expiryYear: 0,
+        cvv: '',
       },
       payment,
     );
 
-    expect(result.status).toBe('failed');
-    expect(result.toPrimitives().failureReason).toBe('Tarjeta rechazada');
+    expect(result.status).toBe('paid');
+    expect(chargeMock).toHaveBeenCalledWith(45000, 'online', undefined);
     expect(saveMock).toHaveBeenCalledWith(payment);
+    expect(result.toPrimitives()).not.toHaveProperty('cardNumber');
   });
 
   it('publishes confirmation only for the payment booking association', async () => {

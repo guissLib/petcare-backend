@@ -24,18 +24,18 @@ export class CreatePaymentDto {
 }
 
 export class MockCardPaymentDto {
-  @ApiProperty({ example: 'Ana Pérez' })
-  cardholderName!: string;
+  @ApiPropertyOptional({ example: 'Ana Pérez' })
+  cardholderName?: string;
 
-  @ApiProperty({ example: '4242424242424242' })
-  cardNumber!: string;
+  @ApiPropertyOptional({ example: '4242424242424242' })
+  cardNumber?: string;
 
-  @ApiProperty({ example: 12, minimum: 1, maximum: 12 })
-  expiryMonth!: number;
+  @ApiPropertyOptional({ example: 12 })
+  expiryMonth?: number;
 
-  @ApiProperty({ example: 2028 })
-  expiryYear!: number;
+  @ApiPropertyOptional({ example: 2028 })
+  expiryYear?: number;
 
-  @ApiProperty({ example: '123' })
-  cvv!: string;
+  @ApiPropertyOptional({ example: '123' })
+  cvv?: string;
 }

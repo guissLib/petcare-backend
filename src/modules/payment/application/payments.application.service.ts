@@ -37,11 +37,7 @@ export class PaymentsApplicationService {
   async create(input: Input) {
     required(input, ['amount', 'method']);
     const method = readPaymentMethod(input.method);
-    const card =
-      method === 'online' && input.cardNumber !== undefined
-        ? readMockCard(input)
-        : undefined;
-    return this.charge(numberValue(input, 'amount'), method, undefined, card);
+    return this.charge(numberValue(input, 'amount'), method);
   }
 
   createPending(
@@ -116,11 +112,6 @@ export class PaymentsApplicationService {
     if (payment.status === 'refunded') {
       throw new BusinessRuleError('Un pago compensado no puede procesarse');
     }
-    if (payment.method === 'online' && !card) {
-      throw new BusinessRuleError(
-        'Los pagos online requieren los datos de la tarjeta',
-      );
-    }
     payment.startAttempt();
     const result = await this.gateway.charge(
       payment.amount,
@@ -136,11 +127,11 @@ export class PaymentsApplicationService {
     return payment;
   }
 
-  async processInput(payment: Payment, input: Input) {
+  async processInput(payment: Payment, _input: Input) {
     if (payment.status === 'paid') {
       return payment;
     }
-    return this.process(payment, readMockCard(input));
+    return this.process(payment);
   }
 
   async save(payment: Payment) {
@@ -175,9 +166,8 @@ export class PaymentsApplicationService {
     });
   }
 
-  async pay(input: Input, payment: Payment) {
-    const card = readMockCard(input);
-    const result = await this.process(payment, card);
+  async pay(_input: Input, payment: Payment) {
+    const result = await this.process(payment);
     await this.payments.save(result);
     return result;
   }
@@ -188,7 +178,7 @@ export class PaymentsApplicationService {
     providerId: string;
     paymentId: string;
     amount: number;
-    card: MockPaymentCard;
+    card?: MockPaymentCard;
   }) {
     const payment = await this.findById(input.paymentId);
     if (
@@ -202,7 +192,7 @@ export class PaymentsApplicationService {
         'El contexto del pago no coincide con la reserva',
       );
     }
-    const result = await this.process(payment, input.card);
+    const result = await this.process(payment);
     await this.payments.save(result);
     return result;
   }
@@ -288,44 +278,4 @@ function readPaymentMethod(value: unknown): PaymentMethod {
     return value;
   }
   throw new BusinessRuleError('method debe ser online o at-location');
-}
-
-function readMockCard(input: Input): MockPaymentCard {
-  const cardholderName = stringValue(input.cardholderName).trim();
-  const cardNumber = stringValue(input.cardNumber).replace(/\s/g, '');
-  const expiryMonth = Number(input.expiryMonth);
-  const expiryYear = Number(input.expiryYear);
-  const cvv = stringValue(input.cvv).trim();
-  if (
-    cardholderName.length < 2 ||
-    !/^\d{13,19}$/.test(cardNumber) ||
-    !Number.isInteger(expiryMonth) ||
-    expiryMonth < 1 ||
-    expiryMonth > 12 ||
-    !Number.isInteger(expiryYear) ||
-    expiryYear < new Date().getFullYear() ||
-    !/^\d{3,4}$/.test(cvv)
-  ) {
-    throw new BusinessRuleError(
-      'Los datos de la tarjeta no tienen un formato válido',
-    );
-  }
-  const nowDate = new Date();
-  if (
-    expiryYear === nowDate.getFullYear() &&
-    expiryMonth < nowDate.getMonth() + 1
-  ) {
-    throw new BusinessRuleError('La tarjeta está vencida');
-  }
-  return {
-    cardholderName,
-    cardNumber,
-    expiryMonth,
-    expiryYear,
-    cvv,
-  };
-}
-
-function stringValue(value: unknown) {
-  return typeof value === 'string' ? value : '';
 }

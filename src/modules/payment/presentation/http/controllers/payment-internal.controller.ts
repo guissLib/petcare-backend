@@ -142,11 +142,6 @@ function readMethod(value: unknown) {
   throw new ForbiddenException('method no es válido');
 }
 
-function readCard(input: Input): MockPaymentCard {
-  const cardholderName = requiredText(input.cardholderName, 'cardholderName');
-  const cardNumber = requiredText(input.cardNumber, 'cardNumber');
-  const expiryMonth = requiredNumber(input.expiryMonth, 'expiryMonth');
-  const expiryYear = requiredNumber(input.expiryYear, 'expiryYear');
-  const cvv = requiredText(input.cvv, 'cvv');
-  return { cardholderName, cardNumber, expiryMonth, expiryYear, cvv };
+function readCard(_input: Input): MockPaymentCard {
+  return {};
 }

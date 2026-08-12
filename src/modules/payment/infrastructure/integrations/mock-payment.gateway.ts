@@ -12,19 +12,8 @@ export class MockPaymentGateway implements PaymentGateway {
   charge(
     _amount: number,
     method: PaymentMethod,
-    card?: MockPaymentCard,
+    _card?: MockPaymentCard,
   ): Promise<PaymentGatewayResult> {
-    if (
-      method === 'online' &&
-      card?.cardNumber.replace(/\s/g, '').endsWith('0002')
-    ) {
-      return Promise.resolve({
-        status: 'failed',
-        provider: 'mock',
-        reference: `MOCK-FAILED-${randomUUID().slice(0, 8).toUpperCase()}`,
-        failureReason: 'La tarjeta mock fue rechazada',
-      });
-    }
     return Promise.resolve({
       status: method === 'online' ? 'paid' : 'pending',
       provider: 'mock',
