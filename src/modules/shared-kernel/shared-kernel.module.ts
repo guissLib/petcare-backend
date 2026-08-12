@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { EVENT_BUS } from './application/ports/event-bus.port';
 import { PAYMENT_EVENT_PUBLISHER } from './application/ports/payment-event-bus.port';
 import { SAGA_MESSAGE_BUS } from './application/ports/saga-message-bus.port';
@@ -8,11 +9,15 @@ import {
   BookingAvailabilityHttpClient,
 } from './infrastructure/integrations/booking-availability.client';
 import { CloudAmqpPaymentEventBus } from './infrastructure/messaging/cloud-amqp-payment-event-bus.service';
+import { ContextOutboxPublisherService } from './infrastructure/messaging/context-outbox-publisher.service';
+import { IntegrationOutboxOrmEntity } from './infrastructure/persistence/entities/integration-outbox.orm-entity';
 
 @Module({
+  imports: [TypeOrmModule.forFeature([IntegrationOutboxOrmEntity])],
   providers: [
     LocalEventBus,
     CloudAmqpPaymentEventBus,
+    ContextOutboxPublisherService,
     BookingAvailabilityHttpClient,
     {
       provide: EVENT_BUS,

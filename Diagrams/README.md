@@ -5,13 +5,13 @@ Los diagramas C4 están disponibles en Mermaid y PlantUML.
 ## Niveles
 
 - `01-system-context.mmd`: actores y dependencias externas del sistema.
-- `02-containers.mmd`: frontend, API Gateway, backend, Booking Service, sus
-  bases de datos, RabbitMQ y mapas.
-- `03-components.puml`: componentes del gateway, módulos del backend,
-  componentes internos de Booking Service y el flujo asíncrono de confirmación
-  de pagos.
-- `03-components.puml` y `03-components.png`: versión C4 equivalente para
-  PlantUML.
+- `02-containers.mmd`: frontend, API Gateway, servicios, bases write/read,
+  RabbitMQ y mapas.
+- `03-components.puml`: outbox de contexto, Booking CQRS, tokenización mock,
+  Saga durable y procesamiento Payment asíncrono.
+- `03-components.png`: render generado de `03-components.puml`. Debe
+  regenerarse después de cambiar la fuente; la fecha del archivo permite
+  detectar si quedó desactualizado.
 
 ## Visualizar
 
@@ -25,37 +25,50 @@ en Markdown usando:
 ```
 ````
 
+Para validar y regenerar el artefacto PlantUML desde este directorio:
+
+```bash
+plantuml -failfast2 -tpng 03-components.puml
+```
+
+El comando requiere un runtime Java y acceso al `!include` C4 remoto. No se debe
+considerar actualizado `03-components.png` si su fecha es anterior a la fuente.
+
 ## Decisiones representadas
 
-- La capa de dominio no depende de NestJS, MySQL ni de proveedores externos.
-- La capa de aplicación coordina casos de uso y aplica las reglas entre
-  agregados.
-- Los contratos de repositorio y gateways viven como puertos; infraestructura
-  los implementa con repositorios TypeORM y adaptadores mock.
-- MySQL se administra mediante migraciones TypeORM, con
-  `synchronize=false` y TLS verificable.
-- El seed inicial crea el administrador, proveedores y promoción base de forma
-  idempotente.
-- El frontend consume únicamente el API Gateway; el gateway enruta hacia
-  backend y `booking-service`, mientras el backend conserva los bounded
-  contexts que le pertenecen y los contratos internos de contexto,
-  disponibilidad y Payment.
-- El gateway valida el JWT público y propaga claims internos mediante un secreto
-  servidor-a-servidor; los servicios no aceptan JWT directo desde clientes.
-- El login emite JWT, el guard protege los endpoints y las contraseñas se
-  verifican contra hashes scrypt.
-- Cada módulo de negocio contiene internamente `presentation`, `application`,
-  `domain` e `infrastructure`; `src/app.module.ts` solo realiza la composición.
-- Booking es dueño de su agregado y de su base MySQL privada, sin FK hacia
-  usuarios, mascotas o proveedores de otros bounded contexts.
-- Booking calcula el importe y valida el contexto server-side; el navegador no
-  puede imponer `total`, `paymentId` ni estados.
-- Payment crea y procesa intenciones únicamente mediante endpoints internos
-  protegidos por secreto de servicio. Después de persistir Booking, publica
-  `payment.confirmed` para evitar carreras de confirmación.
-- Payment publica `payment.confirmed` en RabbitMQ/CloudAMQP después de persistir
-  un pago aprobado; el orquestador envía `booking.confirm` y Booking confirma
-  la reserva de forma idempotente antes de notificar al proveedor.
-- `orchestration-service` coordina el proceso como una Saga: mantiene el
-  estado y un outbox ACID, usa Booking como transacción pivote, compensa el
-  pago con un reembolso si la reserva falla y reintenta las notificaciones.
+- El frontend consume únicamente el API Gateway. El gateway enruta booking,
+  catálogo y checkout a `booking-service`; no existe acceso frontend directo a
+  servicios internos.
+- `petcare-backend` publica eventos `context.*.vN` mediante outbox transaccional.
+  Booking los consume con inbox idempotente y mantiene una base MySQL
+  read/context separada y eventualmente consistente.
+- Booking crea primero una reserva provisional en su write DB y publica
+  `booking.requested` mediante outbox. Calcula importe y valida contexto
+  server-side; el cliente no impone total, `paymentId` ni estados.
+- El tokenizador mock vive en memoria. PAN, CVV y vencimiento nunca se
+  persisten, registran ni publican; el único valor permitido fuera de la
+  llamada es un token con forma `mock_tok`.
+- `orchestration-service` inicia una Saga durable al consumir
+  `booking.requested`. Encola `payment.intent.create` y luego
+  `payment.capture-token` o `payment.confirm-at-location`.
+- Payment en `petcare-backend` consume comandos asíncronos con inbox, persiste
+  el resultado y la respuesta en un outbox en la misma transacción, y publica
+  la respuesta a RabbitMQ. No hay llamada HTTP síncrona Booking→Payment.
+- Booking consume `booking.confirm` de forma idempotente, confirma el agregado
+  y actualiza su modelo CQRS de lectura.
+- Todos los consumidores usan identificador de mensaje/correlación, inbox,
+  retries con backoff y DLQ. La entrega es al menos una vez y los efectos son
+  idempotentes.
+- La arquitectura acepta consistencia eventual: catálogo/contexto y estado de
+  consulta pueden retrasarse respecto de sus fuentes. La API expone el estado
+  provisional mientras la Saga sigue en curso.
+- El login actual sigue en `petcare-backend`; el gateway lo enruta y valida el
+  JWT para el resto de rutas. Esta es una limitación vigente, no un servicio de
+  identidad desacoplado.
+
+## Documentación operativa
+
+- `../../docs/architecture/resilient-booking-flow.md`: contratos, límites,
+  garantías e invariantes del flujo aprobado.
+- `../../docs/runbooks/resilient-booking-migration.md`: migración, backfill,
+  despliegue, métricas y pruebas de fallo/recuperación.

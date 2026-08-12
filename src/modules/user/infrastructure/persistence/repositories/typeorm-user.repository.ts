@@ -9,6 +9,8 @@ import {
   toDate,
   toIso,
 } from '../../../../shared-kernel/infrastructure/persistence/orm-mapper.utils';
+import { enqueueContextSnapshot } from '../../../../shared-kernel/infrastructure/persistence/context-snapshot-outbox';
+import { toContextUserSnapshot } from '../../../../shared-kernel/infrastructure/messaging/context-snapshot.mapper';
 
 @Injectable()
 export class TypeOrmUserRepository implements UserRepository {
@@ -19,15 +21,23 @@ export class TypeOrmUserRepository implements UserRepository {
 
   async save(user: User) {
     const data = user.toPrimitives();
-    await this.repository.save({
-      id: data.id,
-      name: data.name,
-      email: data.email,
-      role: data.role,
-      passwordHash: data.passwordHash,
-      city: data.city ?? null,
-      phone: data.phone ?? null,
-      createdAt: toDate(data.createdAt),
+    await this.repository.manager.transaction(async (manager) => {
+      await manager.getRepository(UserOrmEntity).save({
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        passwordHash: data.passwordHash,
+        city: data.city ?? null,
+        phone: data.phone ?? null,
+        createdAt: toDate(data.createdAt),
+      });
+      await enqueueContextSnapshot(manager, {
+        eventType: 'context.user.upserted',
+        aggregateType: 'user',
+        aggregateId: data.id,
+        data: toContextUserSnapshot(data),
+      });
     });
   }
 

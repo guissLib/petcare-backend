@@ -13,6 +13,8 @@ import {
   toDate,
   toIso,
 } from '../../../../shared-kernel/infrastructure/persistence/orm-mapper.utils';
+import { enqueueContextSnapshot } from '../../../../shared-kernel/infrastructure/persistence/context-snapshot-outbox';
+import { toContextPetSnapshot } from '../../../../shared-kernel/infrastructure/messaging/context-snapshot.mapper';
 
 @Injectable()
 export class TypeOrmPetRepository implements PetRepository {
@@ -80,6 +82,12 @@ export class TypeOrmPetRepository implements PetRepository {
           }),
         );
       }
+      await enqueueContextSnapshot(manager, {
+        eventType: 'context.pet.upserted',
+        aggregateType: 'pet',
+        aggregateId: data.id,
+        data: toContextPetSnapshot(data),
+      });
     });
   }
 
@@ -94,6 +102,14 @@ export class TypeOrmPetRepository implements PetRepository {
   async findByOwnerId(ownerId: string) {
     const records = await this.repository.find({
       where: { ownerId },
+      relations: { vaccinations: true },
+      order: { name: 'ASC' },
+    });
+    return records.map(toDomain);
+  }
+
+  async findAll() {
+    const records = await this.repository.find({
       relations: { vaccinations: true },
       order: { name: 'ASC' },
     });

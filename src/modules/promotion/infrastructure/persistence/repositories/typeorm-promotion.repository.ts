@@ -10,6 +10,8 @@ import {
   toDate,
   toIso,
 } from '../../../../shared-kernel/infrastructure/persistence/orm-mapper.utils';
+import { enqueueContextSnapshot } from '../../../../shared-kernel/infrastructure/persistence/context-snapshot-outbox';
+import { toContextPromotionSnapshot } from '../../../../shared-kernel/infrastructure/messaging/context-snapshot.mapper';
 
 @Injectable()
 export class TypeOrmPromotionRepository implements PromotionRepository {
@@ -43,6 +45,12 @@ export class TypeOrmPromotionRepository implements PromotionRepository {
           serviceType,
         })),
       );
+      await enqueueContextSnapshot(manager, {
+        eventType: 'context.promotion.upserted',
+        aggregateType: 'promotion',
+        aggregateId: data.id,
+        data: toContextPromotionSnapshot(data),
+      });
     });
   }
 

@@ -7,6 +7,8 @@ import { ProviderOrmEntity } from '../entities/provider.orm-entity';
 import { ProviderScheduleOrmEntity } from '../entities/provider-schedule.orm-entity';
 import { ProviderServiceOrmEntity } from '../entities/provider-service.orm-entity';
 import { optionalText } from '../../../../shared-kernel/infrastructure/persistence/orm-mapper.utils';
+import { enqueueContextSnapshot } from '../../../../shared-kernel/infrastructure/persistence/context-snapshot-outbox';
+import { toContextProviderSnapshot } from '../../../../shared-kernel/infrastructure/messaging/context-snapshot.mapper';
 
 @Injectable()
 export class TypeOrmProviderRepository implements ProviderRepository {
@@ -50,6 +52,12 @@ export class TypeOrmProviderRepository implements ProviderRepository {
           endTime: schedule.end,
         })),
       );
+      await enqueueContextSnapshot(manager, {
+        eventType: 'context.provider.upserted',
+        aggregateType: 'provider',
+        aggregateId: data.id,
+        data: toContextProviderSnapshot(data),
+      });
     });
   }
 

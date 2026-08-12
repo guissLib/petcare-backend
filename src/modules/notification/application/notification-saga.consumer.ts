@@ -10,7 +10,9 @@ import type {
 } from '../../shared-kernel/application/ports/saga-message-bus.port';
 import { NotificationsApplicationService } from './notifications.application.service';
 
-const NOTIFICATION_QUEUE = 'petcare.notification.confirmation-command';
+const NOTIFICATION_QUEUE =
+  process.env.RABBITMQ_NOTIFICATION_QUEUE?.trim() ||
+  'petcare.notification.confirmation-command.v2';
 
 @Injectable()
 export class NotificationSagaConsumer implements OnModuleInit {

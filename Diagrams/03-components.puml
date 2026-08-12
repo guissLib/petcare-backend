@@ -2,7 +2,7 @@
 
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
 
-title PetCare - Componentes y Orquestación Saga (Diagrama C4)
+title PetCare - Reserva resiliente, CQRS y Saga durable (Diagrama C4)
 
 Person(owner, "Dueño de mascota", "Consulta servicios y agenda reservas")
 Person(providerUser, "Proveedor", "Gestiona servicios y reservas")
@@ -14,14 +14,15 @@ System_Boundary(petcare, "PetCare System") {
 
     Container_Boundary(apiGateway, "PetCare API Gateway") {
         Component(gatewayAuth, "Gateway Authentication", "JWT + trusted claims", "Valida JWT y propaga identidad interna")
-        Component(gatewayProxy, "Gateway Proxy", "HTTP streaming proxy", "Enruta la API pública hacia cada bounded context")
+        Component(gatewayProxy, "Gateway Proxy", "HTTP streaming proxy", "Único punto público; enruta booking, catálogo y checkout a Booking Service")
     }
 
     Container_Boundary(backend, "PetCare Backend (Monolito Modular)") {
 
-        Component(bookingContext, "Booking Context Contract", "Internal HTTP adapter", "Entrega a Booking los datos validados de usuario, mascota, proveedor y promociones")
-
-        Component(payment, "Payment Module", "Internal Controllers · Use Cases\nDomain · Infrastructure", "Intenciones, checkout mock y publicación de eventos")
+        Component(contextOutbox, "Context Event Outbox", "Transactional outbox", "Publica eventos versionados de usuario, mascota, proveedor, catálogo y promociones")
+        Component(payment, "Payment Module", "AMQP Consumers · Use Cases\nDomain · Infrastructure", "Consume comandos durables y procesa Payment asíncronamente")
+        Component(paymentInbox, "Payment Command Inbox", "MySQL · idempotency key", "Deduplica payment.intent.create, payment.capture-token y payment.confirm-at-location")
+        Component(paymentOutbox, "Payment Reply Outbox", "Transactional outbox", "Publica respuestas de Payment sin dual writes")
 
         Component(user, "User Module", "Controllers · Use Cases\nDomain · Infrastructure", "Usuarios y autenticación")
 
@@ -40,17 +41,21 @@ System_Boundary(petcare, "PetCare System") {
     ContainerDb(database, "PetCare MySQL", "MySQL / Aiven", "Persistencia principal de PetCare excepto Booking")
 
     Container_Boundary(bookingService, "Booking Service (Microservicio)") {
-        Component(bookingApi, "Booking HTTP API", "Controllers · DTOs · Auth", "Cotización, creación, consulta y estados")
-        Component(bookingDomain, "Booking Application/Domain", "Use Cases · Aggregate", "Reglas de ciclo de vida y confirmación idempotente")
-        Component(bookingPersistence, "Booking Persistence", "TypeORM · MySQL", "Repositorio de la base privada de Booking")
+        Component(bookingApi, "Booking HTTP API", "Controllers · DTOs · Auth", "Catálogo, checkout y reservas provisionales")
+        Component(cardTokenizer, "Mock Card Tokenizer", "In-memory adapter", "Convierte datos efímeros de tarjeta en mock_tok; no persiste ni publica datos de tarjeta")
+        Component(bookingDomain, "Booking Application/Domain", "Use Cases · Aggregate", "Crea provisional, aplica confirmación idempotente y emite eventos")
+        Component(bookingWrite, "Booking Write Persistence", "TypeORM · MySQL", "Agregado, inbox y outbox transaccionales")
+        Component(contextConsumer, "Versioned Context Consumer", "AMQP · inbox", "Valida versión, deduplica y proyecta contexto local")
+        Component(readProjector, "Booking CQRS Projector", "AMQP/local outbox", "Proyecta estados confirmados en el modelo de lectura")
     }
 
-    ContainerDb(bookingDb, "Booking MySQL", "MySQL", "Persistencia exclusiva del agregado Booking")
+    ContainerDb(bookingWriteDb, "Booking Write DB", "MySQL", "Reservas provisionales/confirmadas, inbox y outbox")
+    ContainerDb(bookingReadDb, "Booking Read/Context DB", "MySQL separado", "CQRS de consulta y copias locales eventualmente consistentes de contexto")
 
 
     Container(orchestrator, "Orchestration Service", "NestJS / TypeScript", "Orquestador Saga de pagos, reservas y notificaciones")
 
-    ContainerDb(orchestratorDb, "Orchestration MySQL", "MySQL", "Persistencia del estado de las Sagas y correlación de procesos")
+    ContainerDb(orchestratorDb, "Orchestration MySQL", "MySQL", "Estado durable de Sagas, eventos fuera de orden diferidos, correlación y outbox de comandos")
 }
 
 
@@ -72,8 +77,8 @@ Rel(providerUser, web, "Usa", "HTTPS")
 ' =========================================================
 
 Rel(web, gatewayProxy, "Consume la API pública", "REST/HTTPS")
-Rel(gatewayProxy, backend, "Enruta usuarios, mascotas, proveedores, promociones y mapas", "REST/HTTP")
-Rel(gatewayProxy, bookingApi, "Enruta quote, reservas, estados y checkout", "REST/HTTP")
+Rel(gatewayProxy, backend, "Enruta login, usuarios, mascotas, proveedores y mapas", "REST/HTTP")
+Rel(gatewayProxy, bookingApi, "Enruta booking, catálogo y checkout", "REST/HTTP")
 Rel(gatewayAuth, gatewayProxy, "Entrega claims confiables", "Headers internos")
 Rel(gatewayProxy, user, "Propaga identidad de gateway", "Secreto interno")
 
@@ -83,20 +88,29 @@ Rel(gatewayProxy, user, "Propaga identidad de gateway", "Secreto interno")
 ' =========================================================
 
 Rel(bookingApi, bookingDomain, "Ejecuta casos de uso")
-
-Rel(bookingDomain, bookingPersistence, "Persiste el agregado")
-Rel(bookingPersistence, bookingDb, "Lee/Escribe", "MySQL/TLS")
-Rel(bookingApi, bookingContext, "Solicita contexto de negocio", "HTTP/JSON")
-Rel(bookingApi, payment, "Solicita intención y procesamiento de pago", "HTTP/JSON")
+Rel(bookingApi, cardTokenizer, "Tokeniza tarjeta mock solo en memoria")
+Rel(cardTokenizer, bookingDomain, "Entrega únicamente mock_tok")
+Rel(bookingDomain, bookingWrite, "Persiste provisional + booking.requested en outbox")
+Rel(bookingWrite, bookingWriteDb, "Lee/Escribe", "MySQL/TLS")
+Rel(bookingApi, bookingReadDb, "Lee catálogo/contexto local y CQRS", "MySQL/TLS")
+Rel(contextConsumer, bookingReadDb, "Proyecta contexto versionado", "MySQL/TLS")
+Rel(readProjector, bookingReadDb, "Actualiza modelo CQRS", "MySQL/TLS")
 
 
 ' =========================================================
 ' 4. Comunicación bidireccional mediante RabbitMQ / CloudAMQP
 ' =========================================================
 
-BiRel(bookingDomain, rabbitmq, "Consume booking.confirm/cancel y publica eventos", "AMQP")
+Rel(contextOutbox, rabbitmq, "Publica context.*.v1 (y versiones compatibles)", "AMQP")
+Rel(rabbitmq, contextConsumer, "Entrega contexto; inbox, retries y DLQ", "AMQP")
+Rel(bookingWrite, rabbitmq, "Publica booking.requested desde outbox", "AMQP")
+Rel(rabbitmq, bookingWrite, "Entrega booking.confirm/cancel; inbox idempotente", "AMQP")
+Rel(bookingWrite, readProjector, "Emite cambio confirmado")
 
-BiRel(payment, rabbitmq, "Publica y consume mensajes", "AMQP")
+Rel(rabbitmq, paymentInbox, "Entrega comandos durables; retries y DLQ", "AMQP")
+Rel(paymentInbox, payment, "Comando deduplicado")
+Rel(payment, paymentOutbox, "Persiste resultado + respuesta atómicamente")
+Rel(paymentOutbox, rabbitmq, "Publica payment.intent.created/captured/failed", "AMQP")
 
 BiRel(notification, rabbitmq, "Publica y consume mensajes", "AMQP")
 
@@ -105,21 +119,22 @@ BiRel(notification, rabbitmq, "Publica y consume mensajes", "AMQP")
 ' 5. Orquestación de la Saga
 ' =========================================================
 
-BiRel(orchestrator, rabbitmq, "Publica comandos y consume eventos", "AMQP")
+Rel(rabbitmq, orchestrator, "booking.requested inicia Saga durable; consume respuestas", "AMQP")
+Rel(orchestrator, rabbitmq, "Encola payment.intent.create y payment.capture-token o payment.confirm-at-location", "Outbox/AMQP")
 
 
 ' =========================================================
 ' 6. Persistencia del Orchestration Service
 ' =========================================================
 
-Rel(orchestrator, orchestratorDb, "Lee/Escribe estado de Saga", "MySQL")
+Rel(orchestrator, orchestratorDb, "Lee/Escribe estado de Saga y reprocesa payment.tokenized diferido", "MySQL")
 
 
 ' =========================================================
 ' 7. Dependencias al Shared Kernel
 ' =========================================================
 
-Rel(bookingContext, shared, "Usa")
+Rel(contextOutbox, shared, "Usa")
 Rel(payment, shared, "Usa")
 Rel(user, shared, "Usa")
 Rel(pet, shared, "Usa")
@@ -133,6 +148,9 @@ Rel(promotion, shared, "Usa")
 ' =========================================================
 
 Rel(backend, database, "Lee/Escribe datos no pertenecientes a Booking", "Conexión DB")
+Rel(contextOutbox, database, "Lee outbox en la misma transacción de contexto", "MySQL")
+Rel(paymentInbox, database, "Deduplicación durable", "MySQL")
+Rel(paymentOutbox, database, "Respuestas transaccionales", "MySQL")
 
 
 ' =========================================================
@@ -140,6 +158,20 @@ Rel(backend, database, "Lee/Escribe datos no pertenecientes a Booking", "Conexi�
 ' =========================================================
 
 Rel(petcare, maps, "Consume API para geolocalización", "REST")
+
+note right of cardTokenizer
+  INVARIANTE: PAN, CVV y vencimiento
+  existen solo durante la llamada.
+  Persistencia, logs y eventos contienen
+  únicamente mock_tok.
+end note
+
+note bottom of bookingReadDb
+  Consistencia eventual: el alta puede usar
+  contexto local ligeramente desactualizado.
+  Inbox/outbox, claves idempotentes, retries
+  con backoff y DLQ permiten recuperación.
+end note
 
 
 SHOW_LEGEND()

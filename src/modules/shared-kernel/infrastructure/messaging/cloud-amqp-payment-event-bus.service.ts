@@ -20,10 +20,11 @@ import type {
   SagaMessageHandler,
   SagaMessageName,
 } from '../../application/ports/saga-message-bus.port';
+import { RetryableSagaError } from '../../application/ports/saga-message-bus.port';
 
 interface Registration {
   queue: string;
-  routingKey: SagaMessageName;
+  routingKeys: SagaMessageName[];
   handler: SagaMessageHandler;
   started: boolean;
 }
@@ -84,12 +85,12 @@ export class CloudAmqpPaymentEventBus
 
   register(
     queue: string,
-    routingKey: SagaMessageName,
+    routingKey: SagaMessageName | SagaMessageName[],
     handler: SagaMessageHandler,
   ) {
     const registration: Registration = {
       queue,
-      routingKey,
+      routingKeys: Array.isArray(routingKey) ? routingKey : [routingKey],
       handler,
       started: false,
     };
@@ -148,6 +149,7 @@ export class CloudAmqpPaymentEventBus
       {
         contentType: 'application/json',
         deliveryMode: 2,
+        persistent: true,
         messageId: eventId,
         type: eventName,
       },
@@ -220,23 +222,21 @@ export class CloudAmqpPaymentEventBus
     const channel = this.channel;
     const deadLetterQueue = `${registration.queue}.dlq`;
     await channel.assertQueue(deadLetterQueue, { durable: true });
-    await channel.bindQueue(
-      deadLetterQueue,
-      this.deadLetterExchange,
-      registration.routingKey,
-    );
     await channel.assertQueue(registration.queue, {
       durable: true,
       arguments: {
         'x-dead-letter-exchange': this.deadLetterExchange,
-        'x-dead-letter-routing-key': registration.routingKey,
+        'x-dead-letter-routing-key': registration.queue,
       },
     });
     await channel.bindQueue(
+      deadLetterQueue,
+      this.deadLetterExchange,
       registration.queue,
-      this.exchange,
-      registration.routingKey,
     );
+    for (const routingKey of registration.routingKeys) {
+      await channel.bindQueue(registration.queue, this.exchange, routingKey);
+    }
     await channel.consume(
       registration.queue,
       (message) => void this.handleMessage(channel, registration, message),
@@ -244,7 +244,7 @@ export class CloudAmqpPaymentEventBus
     );
     registration.started = true;
     this.logger.log(
-      `RabbitMQ consumidor activo queue=${registration.queue} routingKey=${registration.routingKey}`,
+      `RabbitMQ consumidor activo queue=${registration.queue} routingKeys=${registration.routingKeys.join(',')}`,
     );
   }
 
@@ -265,15 +265,15 @@ export class CloudAmqpPaymentEventBus
       channel.ack(message);
     } catch (error) {
       this.logger.error(
-        `Mensaje ${registration.routingKey} rechazado: ${errorMessage(error)}`,
+        `Mensaje ${message.fields.routingKey} rechazado: ${errorMessage(error)}`,
       );
-      channel.nack(message, false, false);
+      channel.nack(message, false, error instanceof RetryableSagaError);
     }
   }
 
   private publishLocally(message: SagaMessage) {
     const registrations = [...this.registrations.values()].filter(
-      (registration) => registration.routingKey === message.eventName,
+      (registration) => registration.routingKeys.includes(message.eventName),
     );
     if (registrations.length === 0) {
       this.logger.warn(

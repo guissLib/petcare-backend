@@ -14,6 +14,7 @@ export interface PetRepository {
   save(pet: Pet, document?: VaccinationDocument): Promise<void>;
   findById(id: string): Promise<Pet | null>;
   findByOwnerId(ownerId: string): Promise<Pet[]>;
+  findAll(): Promise<Pet[]>;
   findVaccinationDocument(
     petId: string,
     vaccinationId: string,

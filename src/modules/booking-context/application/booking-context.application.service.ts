@@ -12,6 +12,12 @@ import { PROVIDER_REPOSITORY } from '../../provider/domain/repositories/provider
 import type { ProviderRepository } from '../../provider/domain/repositories/provider.repository';
 import { USER_REPOSITORY } from '../../user/domain/repositories/user.repository';
 import type { UserRepository } from '../../user/domain/repositories/user.repository';
+import {
+  toContextPetSnapshot,
+  toContextPromotionSnapshot,
+  toContextProviderSnapshot,
+  toContextUserSnapshot,
+} from '../../shared-kernel/infrastructure/messaging/context-snapshot.mapper';
 
 @Injectable()
 export class BookingContextApplicationService {
@@ -50,17 +56,34 @@ export class BookingContextApplicationService {
       throw new EntityNotFoundError('Mascota no encontrada');
     }
     return {
-      user: {
-        id: user.id,
-        city: user.toPrimitives().city,
-      },
-      pet: {
-        id: pet.id,
-        ownerId: pet.toPrimitives().ownerId,
-        vaccinationRecords: pet.toPrimitives().vaccinationRecords,
-      },
-      provider: provider.toPrimitives(),
-      promotions: promotions.map((promotion) => promotion.toPrimitives()),
+      user: toContextUserSnapshot(user.toPrimitives()),
+      pet: toContextPetSnapshot(pet.toPrimitives()),
+      provider: toContextProviderSnapshot(provider.toPrimitives()),
+      promotions: promotions.map((promotion) =>
+        toContextPromotionSnapshot(promotion.toPrimitives()),
+      ),
+    };
+  }
+
+  async snapshots() {
+    const [users, pets, providers, promotions] = await Promise.all([
+      this.users.findAll(),
+      this.pets.findAll(),
+      this.providers.findAll(),
+      this.promotions.findAll(),
+    ]);
+    return {
+      schemaVersion: 1 as const,
+      sourceService: 'petcare-backend' as const,
+      generatedAt: new Date().toISOString(),
+      users: users.map((user) => toContextUserSnapshot(user.toPrimitives())),
+      pets: pets.map((pet) => toContextPetSnapshot(pet.toPrimitives())),
+      providers: providers.map((provider) =>
+        toContextProviderSnapshot(provider.toPrimitives()),
+      ),
+      promotions: promotions.map((promotion) =>
+        toContextPromotionSnapshot(promotion.toPrimitives()),
+      ),
     };
   }
 }

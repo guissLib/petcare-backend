@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
   Headers,
   Post,
 } from '@nestjs/common';
@@ -26,6 +27,16 @@ export class BookingContextController {
   ) {
     assertServiceSecret(secret);
     return this.context.get(body);
+  }
+
+  @Get('booking-context/snapshots')
+  @Public()
+  @ApiOperation({
+    summary: 'Snapshots internos completos para backfill de reservas',
+  })
+  snapshots(@Headers('x-petcare-service-secret') secret: string | undefined) {
+    assertServiceSecret(secret);
+    return this.context.snapshots();
   }
 }
 
