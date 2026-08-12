@@ -12,19 +12,18 @@ npm install
 npm run start:dev
 ```
 
-La API queda disponible en `http://localhost:3005/api`.
-La documentación interactiva Swagger queda disponible en
-`http://localhost:3005/api-docs` y el contrato OpenAPI JSON en
-`http://localhost:3005/api-docs/openapi.json`.
+El backend se ejecuta internamente en `http://localhost:3005/api` y Booking en
+`http://localhost:3011/api`. El único punto público para el navegador es
+`http://localhost:3000/api`, expuesto por `api-gateway`; su documentación queda
+en `http://localhost:3000/api-docs`.
 
-El microservicio de reservas se ejecuta por defecto en
-`http://localhost:3011/api`; su Swagger está en
-`http://localhost:3011/api-docs`. El navegador usa
-`NEXT_PUBLIC_BOOKING_API_URL` para consumirlo directamente. Configure
-`BOOKING_SERVICE_URL` y `BOOKING_INTERNAL_SECRET` en el backend para la
-consulta interna de disponibilidad, y `PETCARE_BACKEND_URL` y
-`PETCARE_SERVICE_SECRET` en `booking-service` para sus contratos internos de
-contexto y Payment.
+Las documentaciones internas del backend y Booking están disponibles,
+respectivamente, en `http://localhost:3005/api-docs` y
+`http://localhost:3011/api-docs`, pero sus puertos no deben exponerse
+directamente a Internet. Configure `BOOKING_SERVICE_URL` y
+`BOOKING_INTERNAL_SECRET` en el backend para la consulta interna de
+disponibilidad, y `PETCARE_BACKEND_URL` y `PETCARE_SERVICE_SECRET` en
+`booking-service` para sus contratos internos de contexto y Payment.
 
 ## MySQL
 
@@ -56,7 +55,7 @@ usuarios nuevos se almacenan únicamente como hash scrypt. Si existe una tabla
 aplana sus datos antes de activar los repositorios relacionales.
 La migración `1770000000009-add-payment-booking-id` conserva la asociación
 entre las intenciones de Payment y `bookingId`; debe ejecutarse junto con las
-migraciones del backend antes de levantar el flujo directo.
+migraciones del backend antes de levantar el flujo a través del gateway.
 
 ## Recursos
 
@@ -92,7 +91,8 @@ local` exige `city` y solo aplica cuando coincide con la ciudad del cliente.
 
 ### Booking Service API
 
-El frontend consume estas rutas directamente con el JWT del usuario:
+El frontend consume estas rutas a través de `api-gateway`; el gateway valida el
+JWT y envía al servicio una identidad interna confiable:
 
 - `POST /users/:userId/bookings/quote` calcula el precio en el servidor,
   validando mascota, proveedor, disponibilidad, vacunas y promociones.
@@ -108,8 +108,8 @@ El frontend consume estas rutas directamente con el JWT del usuario:
   `POST /bookings/:bookingId/reminder` gestionan el ciclo operativo autorizado.
 
 El servicio solo acepta orígenes configurados en `CORS_ORIGINS`. Nunca se
-envían al navegador `PETCARE_SERVICE_SECRET`, `BOOKING_INTERNAL_SECRET` ni
-otros secretos de infraestructura.
+envían al navegador `API_GATEWAY_SECRET`, `PETCARE_SERVICE_SECRET`,
+`BOOKING_INTERNAL_SECRET` ni otros secretos de infraestructura.
 
 Los datos de tarjeta del checkout mock se validan únicamente por formato y no
 se almacenan. Para probar un rechazo, use un número de tarjeta terminado en
@@ -119,11 +119,14 @@ se almacenan. Para probar un rechazo, use un número de tarjeta terminado en
 
 - `POST /auth/login` recibe `email` y `password` y devuelve un JWT junto con
   el usuario público.
-- El registro (`POST /users`), `GET /` y `GET /health` son públicos.
-- Los demás endpoints requieren
-  `Authorization: Bearer <accessToken>`.
+- El registro (`POST /users`), login y `GET /health` son públicos a través del
+  gateway.
+- Los demás endpoints requieren `Authorization: Bearer <accessToken>` en el
+  gateway. Los servicios no aceptan JWT directo desde clientes; reciben claims
+  emitidos por el gateway mediante `API_GATEWAY_SECRET`.
 - Configure `AUTH_JWT_SECRET` con un secreto aleatorio de al menos 32
   caracteres y `AUTH_JWT_EXPIRES_IN_SECONDS` para definir la vigencia.
+  Configure además el mismo `API_GATEWAY_SECRET` en gateway, backend y Booking.
 
 Los servicios de grooming, boarding y cleaning requieren un carnet PDF vigente.
 Las reservas validan pertenencia de la mascota, modalidad a domicilio,
@@ -151,7 +154,8 @@ confirmación, rechazo y finalización se guardan localmente y se entregan con e
 canal `mock-push`.
 
 La autenticación utiliza JWT y verifica las contraseñas contra hashes scrypt.
-El guard valida el token en cada endpoint protegido. Las políticas de
+El gateway valida el token en cada endpoint público protegido; los servicios
+validan el secreto y los claims internos emitidos por el gateway. Las políticas de
 propiedad para mascotas, promociones y reservas se aplican en la capa de
 aplicación. Los carnets PDF se almacenan como BLOB privado en MySQL; nunca se
 incluyen en las respuestas normales.

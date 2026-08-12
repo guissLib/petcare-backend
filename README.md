@@ -40,9 +40,11 @@ npm install
 npm run start:dev
 ```
 
-La API queda disponible en `http://localhost:3005/api`. Swagger está en
-`http://localhost:3005/api-docs` y el contrato OpenAPI en
-`http://localhost:3005/api-docs/openapi.json`.
+El backend queda disponible internamente en `http://localhost:3005/api`.
+Para el navegador, levante `api-gateway` en el puerto 3000 y use
+`http://localhost:3000/api`; su Swagger público está en
+`http://localhost:3000/api-docs`. Swagger interno del backend está en
+`http://localhost:3005/api-docs`.
 
 ## MySQL
 
@@ -85,13 +87,16 @@ scrypt.
 
 Las rutas de cotización, creación, consulta, actualización, recordatorios y
 checkout de Booking están documentadas en `booking-service/README.md` y se
-consumen directamente en `http://localhost:3011/api`.
+consumen desde el frontend a través de `http://localhost:3000/api`. El puerto
+3011 queda reservado para comunicación interna.
 
-El registro (`POST /users`), login, raíz y health check son públicos. Los
-endpoints de negocio requieren `Authorization: Bearer <accessToken>` y los
-contratos internos requieren el secreto de servicio. Configure
-`AUTH_JWT_SECRET` con al menos 32 caracteres y
-`AUTH_JWT_EXPIRES_IN_SECONDS` para definir la vigencia.
+El registro (`POST /users`), login, raíz y health check son públicos. El
+gateway valida `Authorization: Bearer <accessToken>` y los endpoints de
+negocio reciben claims internos protegidos por `API_GATEWAY_SECRET`; los
+contratos servicio-a-servicio continúan requiriendo sus secretos específicos.
+Configure `AUTH_JWT_SECRET` con al menos 32 caracteres,
+`AUTH_JWT_EXPIRES_IN_SECONDS` para definir la vigencia y el mismo
+`API_GATEWAY_SECRET` en los tres servicios.
 
 ## Pruebas
 

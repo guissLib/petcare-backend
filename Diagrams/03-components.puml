@@ -12,6 +12,10 @@ System_Boundary(petcare, "PetCare System") {
 
     Container(web, "PetCare Web (Frontend)", "Next.js", "Reservas, checkout y gestión")
 
+    Container_Boundary(apiGateway, "PetCare API Gateway") {
+        Component(gatewayAuth, "Gateway Authentication", "JWT + trusted claims", "Valida JWT y propaga identidad interna")
+        Component(gatewayProxy, "Gateway Proxy", "HTTP streaming proxy", "Enruta la API pública hacia cada bounded context")
+    }
 
     Container_Boundary(backend, "PetCare Backend (Monolito Modular)") {
 
@@ -67,8 +71,11 @@ Rel(providerUser, web, "Usa", "HTTPS")
 ' 2. Web a los servicios
 ' =========================================================
 
-Rel(web, backend, "Consume usuarios, mascotas, proveedores, promociones y mapas", "REST/HTTPS")
-Rel(web, bookingApi, "Consume directamente quote, reservas, estados y checkout", "REST/HTTPS")
+Rel(web, gatewayProxy, "Consume la API pública", "REST/HTTPS")
+Rel(gatewayProxy, backend, "Enruta usuarios, mascotas, proveedores, promociones y mapas", "REST/HTTP")
+Rel(gatewayProxy, bookingApi, "Enruta quote, reservas, estados y checkout", "REST/HTTP")
+Rel(gatewayAuth, gatewayProxy, "Entrega claims confiables", "Headers internos")
+Rel(gatewayProxy, user, "Propaga identidad de gateway", "Secreto interno")
 
 
 ' =========================================================

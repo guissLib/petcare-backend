@@ -20,8 +20,9 @@ src/modules/
 
 `src/app.module.ts` realiza únicamente la composición Nest y registra la
 conexión global de TypeORM. La API, Swagger y los middlewares siguen
-inicializándose desde `src/main.ts`. El frontend consume Booking directamente;
-no existe un gateway público de reservas en este backend.
+inicializándose desde `src/main.ts`. El frontend consume únicamente
+`api-gateway`; este enruta las rutas públicas hacia el backend o
+`booking-service`.
 
 ## Capas dentro de cada módulo
 
@@ -70,8 +71,8 @@ Los módulos Nest exponen únicamente los contratos o servicios que otros
 módulos necesitan. Por ejemplo:
 
 - `booking-service` consume el contrato interno de contexto y Payment de este
-  backend; el frontend le envía directamente quote, creación, consulta,
-  estados y checkout.
+  backend; el frontend le envía quote, creación, consulta, estados y checkout a
+  través de `api-gateway`.
 - `provider` consume el endpoint interno de disponibilidad de
   `booking-service`.
 - `pet` y `notification` consumen el contrato de usuarios.
@@ -106,8 +107,11 @@ El esquema usa `synchronize=false`, migraciones explícitas, claves foráneas,
 ## Seguridad y HTTP
 
 El `JwtAuthGuard` pertenece al módulo `user` y se registra como guard global.
-`@Public()` deja explícitos los endpoints sin autenticación. Los errores de
-dominio se traducen a HTTP mediante
+`api-gateway` valida el JWT público y propaga claims internos mediante un
+secreto exclusivo entre servicios. Backend y Booking aceptan únicamente esa
+identidad de gateway en sus rutas públicas protegidas. `@Public()` deja
+explícitos los endpoints sin autenticación. Los errores de dominio se traducen
+a HTTP mediante
 `shared-kernel/presentation/http/filters/DomainExceptionFilter`.
 
 La API se sirve bajo `/api` y Swagger bajo `/api-docs`.
